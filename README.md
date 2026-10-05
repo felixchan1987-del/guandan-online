@@ -16,6 +16,18 @@ npm test           # 运行规则与流程测试
    - 不坐下即为观战（人数不限，看不到任何人的手牌）
 3. 4 人坐满后任一玩家点「开始游戏」
 
+## 部署到 Render（免费）
+
+仓库已包含 `render.yaml`：
+
+1. 用 GitHub 账号登录 [Render](https://render.com)
+2. **New → Blueprint**，选择本仓库，点 **Apply**
+3. 部署完成后得到网址，如 `https://guandan-online.onrender.com`，房间链接为 `https://guandan-online.onrender.com/r/房间号`
+
+之后每次 push 到 `main` 都会自动重新部署。
+
+> 免费版闲置约 15 分钟后休眠，下次打开需等待 30–50 秒唤醒；休眠或重新部署会清空进行中的房间。
+
 ## 已实现（MVP）
 
 - 标准两副牌 108 张，每人 27 张

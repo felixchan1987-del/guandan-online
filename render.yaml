@@ -1,0 +1,13 @@
+# Render 一键部署：https://render.com → New → Blueprint → 选择本仓库
+services:
+  - type: web
+    name: guandan-online
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
