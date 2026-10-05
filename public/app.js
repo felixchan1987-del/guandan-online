@@ -1,8 +1,9 @@
 import {
   isWild, rankLabel, SUIT_SYMBOLS, playableOptions, describeCombo,
-  tributeCandidates, returnCandidates,
+  tributeCandidates, returnCandidates, TYPES,
 } from '/shared/rules.js';
 import { findCombos } from '/shared/hint.js';
+import { arrangeHand } from '/shared/arrange.js';
 
 const $ = (sel) => document.querySelector(sel);
 const FINISH_NAMES = ['头游', '二游', '三游', '末游'];
@@ -76,6 +77,9 @@ function initRoom(roomId) {
   let hintList = null;
   let hintPos = -1;
   let unread = 0;
+  let groups = []; // 手动理牌的牌组（id 数组）
+  let handAllowed = null; // 进贡/还贡时可选的牌
+  let sfPos = -1;
 
   const emit = (event, data) => socket.emit(event, data, (r) => { if (r && !r.ok) toast(r.error); });
 
@@ -85,6 +89,7 @@ function initRoom(roomId) {
     const prev = state;
     state = s;
     clockOffset = s.serverNow - Date.now();
+    if (s.game.roundNo !== prev?.game?.roundNo) groups = [];
     if (s.game.roundNo !== prev?.game?.roundNo || s.game.phase !== prev?.game?.phase) selected.clear();
     // 手牌变化后丢弃已不存在的选择
     const ids = new Set((s.game.myHand || []).map((c) => c.id));
@@ -145,7 +150,7 @@ function initRoom(roomId) {
     else emit('play', { cardIds: [...selected], optionIndex });
   };
   $('#passBtn').onclick = () => { selected.clear(); emit('pass'); };
-  $('#clearBtn').onclick = () => { selected.clear(); renderHand(); };
+  $('#clearBtn').onclick = () => { selected.clear(); updateSelection(); };
   $('#hintBtn').onclick = () => {
     const g = state.game;
     if (!hintList) hintList = findCombos(g.myHand, g.level, g.lastPlay?.combo);
@@ -155,22 +160,81 @@ function initRoom(roomId) {
     selected = new Set(h.cards.map((c) => c.id));
     const opts = playableOptions(h.cards, g.level, g.lastPlay?.combo);
     optionIndex = Math.max(0, opts.findIndex((o) => o.type === h.combo.type && o.key === h.combo.key));
+    updateSelection();
+  };
+
+  // —— 理牌 ——
+  $('#groupBtn').onclick = () => {
+    if (!selected.size) return toast('先选中要理在一起的牌');
+    groups = groups.map((g) => g.filter((id) => !selected.has(id))).filter((g) => g.length);
+    groups.unshift([...selected]);
+    selected.clear();
     renderHand(true);
   };
+  $('#arrangeBtn').onclick = () => { groups = []; selected.clear(); renderHand(true); };
+  $('#sfBtn').onclick = () => {
+    const g = state.game;
+    const last = g.turn === state.mySeat ? g.lastPlay?.combo : null;
+    const list = findCombos(g.myHand, g.level, last).filter((h) => h.combo.type === TYPES.STRAIGHT_FLUSH);
+    if (!list.length) return toast('没有同花顺');
+    sfPos = (sfPos + 1) % list.length;
+    selected = new Set(list[sfPos].cards.map((c) => c.id));
+    optionIndex = 0;
+    updateSelection();
+  };
+
+  // 点按或滑动多选
+  const handEl = $('#hand');
+  let drag = null;
+  const applyDrag = (id) => {
+    if (drag.on) selected.add(id); else selected.delete(id);
+    optionIndex = 0;
+    updateSelection();
+  };
+  handEl.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.card');
+    if (!el) return;
+    e.preventDefault();
+    const id = el.dataset.id;
+    if (handAllowed) {
+      if (!handAllowed.has(id)) return;
+      selected = new Set([id]);
+      updateSelection();
+      return;
+    }
+    drag = { on: !selected.has(id), seen: new Set([id]) };
+    applyDrag(id);
+  });
+  handEl.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('#hand .card');
+    if (el && !drag.seen.has(el.dataset.id)) {
+      drag.seen.add(el.dataset.id);
+      applyDrag(el.dataset.id);
+    }
+  });
+  for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, () => { drag = null; });
+  window.addEventListener('resize', () => { if (state) renderHand(true); });
   $('#autoBtn').onclick = () => emit('auto', { on: !state.game.auto[state.mySeat] });
 
   // —— 渲染 ——
-  function cardEl(card, level) {
+  function cardEl(card, level, big = false) {
     const el = document.createElement('div');
     el.className = 'card';
+    el.dataset.id = card.id;
     if (card.suit === 'J') {
       el.classList.add('joker', card.rank === 17 ? 'big' : 'small');
-      el.innerHTML = card.rank === 17 ? '<span>大</span><span>王</span>' : '<span>小</span><span>王</span>';
+      el.innerHTML = big
+        ? `<div class="lbl">${card.rank === 17 ? '大王' : '小王'}</div><div class="big-suit">★</div>`
+        : (card.rank === 17 ? '<span>大</span><span>王</span>' : '<span>小</span><span>王</span>');
     } else {
       if (card.suit === 'H' || card.suit === 'D') el.classList.add('red');
       if (card.rank === level) el.classList.add('level');
       if (isWild(card, level)) { el.classList.add('wild'); el.title = '逢人配'; }
-      el.innerHTML = `<span>${rankLabel(card.rank)}</span><span class="s">${SUIT_SYMBOLS[card.suit]}</span>`;
+      const suit = SUIT_SYMBOLS[card.suit];
+      el.innerHTML = big
+        ? `<div class="lbl">${rankLabel(card.rank)}<span>${suit}</span></div><div class="big-suit">${suit}</div>`
+        : `<span>${rankLabel(card.rank)}</span><span class="s">${suit}</span>`;
     }
     return el;
   }
@@ -335,28 +399,54 @@ function initRoom(roomId) {
     const me = state.mySeat;
     const myAction = (g.pending || []).includes(me);
     const tributeMode = g.phase === 'tribute' || g.phase === 'return';
-    let allowed = null;
+    handAllowed = null;
     if (tributeMode && myAction) {
-      allowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
+      handAllowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
     }
 
-    const handEl = $('#hand');
+    const cols = arrangeHand(hand, g.level, groups);
     handEl.innerHTML = '';
-    for (const c of hand) {
-      const el = cardEl(c, g.level);
-      if (selected.has(c.id)) el.classList.add('selected');
-      if (allowed && !allowed.has(c.id)) el.classList.add('dim');
-      el.onclick = () => {
-        if (allowed) {
-          if (!allowed.has(c.id)) return;
-          selected = new Set([c.id]);
-        } else if (selected.has(c.id)) selected.delete(c.id);
-        else selected.add(c.id);
-        optionIndex = 0;
-        renderHand();
-      };
-      handEl.appendChild(el);
+    for (const col of cols) {
+      const colEl = document.createElement('div');
+      colEl.className = `col ${col.kind}`;
+      for (const c of col.cards) {
+        const el = cardEl(c, g.level, true);
+        if (handAllowed && !handAllowed.has(c.id)) el.classList.add('dim');
+        colEl.appendChild(el);
+      }
+      handEl.appendChild(colEl);
     }
+    sizeHand(cols);
+    updateSelection();
+  }
+
+  /** 按屏幕宽高计算牌的大小：尽量大，放不下时列与列重叠 */
+  function sizeHand(cols) {
+    const n = cols.length || 1;
+    const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
+    const avail = handEl.clientWidth;
+    const landscape = window.innerWidth > window.innerHeight;
+    const maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
+    const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
+    let w = Math.min(78, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
+    w = Math.max(w, 34);
+    const overlap = Math.max(0, (n * w + 3 * (n - 1) - avail) / Math.max(1, n - 1));
+    handEl.style.setProperty('--hw', `${Math.floor(w)}px`);
+    handEl.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
+  }
+
+  function updateSelection() {
+    handEl.querySelectorAll('.card').forEach((el) => el.classList.toggle('selected', selected.has(el.dataset.id)));
+    updateControls();
+  }
+
+  function updateControls() {
+    const g = state.game;
+    const hand = g.myHand;
+    if (!hand) return;
+    const me = state.mySeat;
+    const myAction = (g.pending || []).includes(me);
+    const tributeMode = g.phase === 'tribute' || g.phase === 'return';
 
     // 多种牌型解释时让玩家选择（例如带逢人配）
     const optsEl = $('#options');
@@ -373,7 +463,7 @@ function initRoom(roomId) {
           const b = document.createElement('button');
           b.className = 'small' + (i === optionIndex ? ' sel' : '');
           b.textContent = describeCombo(o);
-          b.onclick = () => { optionIndex = i; renderHand(true); };
+          b.onclick = () => { optionIndex = i; updateControls(); };
           optsEl.appendChild(b);
         });
       }
@@ -386,6 +476,8 @@ function initRoom(roomId) {
     $('#hintBtn').classList.toggle('hidden', tributeMode);
     $('#passBtn').disabled = !myAction || !g.lastPlay;
     $('#hintBtn').disabled = !myAction;
+    $('#sfBtn').classList.toggle('hidden', tributeMode);
+    $('#groupBtn').disabled = !selected.size;
     const auto = g.auto[me];
     $('#autoBtn').textContent = auto ? '取消托管' : '托管';
     $('#autoBtn').classList.toggle('primary', auto);

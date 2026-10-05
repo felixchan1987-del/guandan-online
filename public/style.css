@@ -71,7 +71,8 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   border: 2px solid transparent;
 }
 .plate.turn { border-color: var(--accent); box-shadow: 0 0 12px rgba(245, 197, 66, 0.6); }
-.plate .name { font-weight: 600; }
+.plate .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+.plate .meta { white-space: nowrap; }
 .plate .meta { color: var(--muted); font-size: 12px; }
 .plate .offline { color: #ff9a9a; }
 .plate .rank-badge { color: var(--accent); font-weight: 700; }
@@ -103,10 +104,6 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 .actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 8px; }
 #options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 #options button.sel { outline: 2px solid var(--accent); }
-#hand { display: flex; flex-wrap: wrap; justify-content: center; padding-top: 14px; row-gap: 6px; }
-#hand .card { cursor: pointer; transition: transform 0.08s; margin-left: -22px; }
-#hand .card:first-child { margin-left: 0; }
-#hand .card.selected { transform: translateY(-14px); }
 
 #spectators { padding: 6px 16px 12px; color: var(--muted); font-size: 12px; }
 
@@ -122,7 +119,6 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   :root { --card-w: 38px; --card-h: 56px; }
   .table { padding: 8px; grid-template-columns: 1fr 1.4fr 1fr; }
   .plate { min-width: 80px; padding: 4px 6px; }
-  #hand .card { margin-left: -20px; }
   .cards.mini .card { --card-w: 28px; --card-h: 40px; font-size: 11px; }
   .cards.mini .card + .card { margin-left: -14px; }
 }
@@ -150,3 +146,77 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 .quick-row { display: flex; flex-wrap: wrap; gap: 4px; }
 #chatForm { display: flex; gap: 6px; }
 #chatForm input { flex: 1; }
+
+/* 手牌：按列竖向叠放（参考主流掼蛋 App） */
+#hand {
+  --hw: 52px; --ov: 0px;
+  display: flex; justify-content: center; align-items: flex-end; gap: 3px;
+  padding-top: 10px; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#hand .col { display: flex; flex-direction: column; flex: none; }
+#hand .col + .col { margin-left: calc(-1 * var(--ov)); }
+#hand .col.bomb, #hand .col.jokerBomb, #hand .col.straightFlush { position: relative; }
+#hand .col.bomb::before, #hand .col.jokerBomb::before, #hand .col.straightFlush::before {
+  content: ""; position: absolute; left: -1px; right: -1px; top: -4px; height: 3px; border-radius: 2px; background: #ff7043;
+}
+#hand .col.straightFlush::before { background: #ab47bc; }
+#hand .col.custom::before {
+  content: ""; position: absolute; left: -1px; right: -1px; top: -4px; height: 3px; border-radius: 2px; background: #42a5f5;
+}
+#hand .col.custom { position: relative; }
+#hand .card {
+  width: var(--hw); height: calc(var(--hw) * 1.4); padding: 2px 3px; cursor: pointer;
+  font-size: calc(var(--hw) * 0.4); border-radius: calc(var(--hw) * 0.09); line-height: 1;
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.25);
+}
+#hand .col .card + .card { margin-top: calc(var(--hw) * (0.52 - 1.4)); }
+#hand .card .lbl { white-space: nowrap; letter-spacing: -0.5px; }
+#hand .card .lbl span { font-size: 0.9em; margin-left: 1px; }
+#hand .card.joker .lbl { font-size: 0.8em; }
+#hand .card .big-suit {
+  position: absolute; right: 4%; bottom: 2%; font-size: calc(var(--hw) * 0.62); line-height: 1;
+}
+#hand .card.selected { background: #9ccaff; border-color: #1e6fd9; }
+#hand .card.wild.selected { background: #d9c46a; }
+.tools { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rotate-tip { display: none; color: var(--muted); font-size: 12px; }
+@media (orientation: portrait) and (max-width: 600px) { .rotate-tip { display: inline; } }
+
+/* 手机横屏：整屏固定高度，左右玩家放两侧，把空间留给手牌 */
+@media (orientation: landscape) and (max-height: 520px) {
+  #room { height: 100vh; height: 100dvh; overflow: hidden; }
+  .topbar { padding: 2px 12px; font-size: 12px; flex: none; }
+  .topbar button.small { padding: 1px 6px; }
+  .table {
+    flex: 1; min-height: 0; overflow: hidden; padding: 2px 12px; gap: 2px;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "left top right" "left center right" "left bottom right";
+  }
+  .seat.left, .seat.right { justify-content: center; }
+  .seat.top, .seat.bottom { flex-direction: row; justify-content: center; gap: 10px; }
+  .plate { padding: 2px 6px; min-width: 0; font-size: 12px; }
+  .plate .meta { font-size: 11px; }
+  .seat { gap: 2px; }
+  .trick { min-height: 0; }
+  .trick .desc { font-size: 10px; }
+  .cards.mini .card { --card-w: 26px; --card-h: 36px; font-size: 10px; }
+  .cards.mini .card + .card { margin-left: -12px; }
+  .center { gap: 4px; }
+  #status { font-size: 13px; }
+  #tributeInfo { font-size: 11px; }
+  .result-box { padding: 4px 10px; font-size: 12px; }
+  .result-box ol { margin: 2px 0; }
+  #handArea {
+    flex: none; padding: 2px 12px 4px;
+    display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: end;
+    grid-template-areas: "opts opts" "act hand" "act tools";
+  }
+  #options { grid-area: opts; margin-bottom: 0; }
+  .actions { grid-area: act; display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 4px; align-self: center; }
+  .actions button { padding: 6px 10px; }
+  .tools button { padding: 2px 8px; }
+  .tools { grid-area: tools; margin: 4px 0 0; gap: 6px; }
+  #hand { grid-area: hand; padding-top: 6px; }
+  #spectators { display: none; }
+}
