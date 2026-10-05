@@ -1,0 +1,128 @@
+:root {
+  --felt: #1f6b45;
+  --felt-dark: #154d31;
+  --panel: rgba(0, 0, 0, 0.28);
+  --text: #f3f6f4;
+  --muted: #b9d3c3;
+  --accent: #f5c542;
+  --red: #d32f2f;
+  --card-w: 46px;
+  --card-h: 66px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
+  color: var(--text);
+  font: 14px/1.4 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow-x: hidden;
+}
+.hidden { display: none !important; }
+button {
+  font: inherit; border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer;
+  background: #e8efe9; color: #1b3326;
+}
+button.primary { background: var(--accent); color: #3a2a00; font-weight: 600; }
+button.small { padding: 2px 8px; font-size: 12px; }
+button:disabled { opacity: 0.45; cursor: default; }
+input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb; min-width: 0; }
+
+/* 大厅 */
+#lobby { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 16px; }
+.lobby-card {
+  background: var(--panel); border-radius: 12px; padding: 28px; width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.lobby-card h1 { margin: 0; text-align: center; letter-spacing: 4px; }
+.lobby-card .sub { margin: 0; text-align: center; color: var(--muted); }
+.lobby-card label { display: flex; flex-direction: column; gap: 4px; }
+.join-row { display: flex; gap: 8px; }
+.join-row input { flex: 1; text-transform: uppercase; }
+
+/* 房间 */
+#room { display: flex; flex-direction: column; min-height: 100%; }
+.topbar {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center;
+  padding: 8px 16px; background: var(--panel);
+}
+#levelInfo b { color: var(--accent); }
+
+.table {
+  flex: 1; display: grid; gap: 8px; padding: 12px 16px;
+  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "top top top" "left center right" "bottom bottom bottom";
+  min-height: 360px;
+}
+.seat { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.seat.top { grid-area: top; }
+.seat.left { grid-area: left; justify-content: center; }
+.seat.right { grid-area: right; justify-content: center; }
+.seat.bottom { grid-area: bottom; }
+.center {
+  grid-area: center; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center;
+}
+#status { font-size: 16px; }
+#centerActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+.plate {
+  background: var(--panel); border-radius: 8px; padding: 6px 10px; text-align: center; min-width: 110px;
+  border: 2px solid transparent;
+}
+.plate.turn { border-color: var(--accent); box-shadow: 0 0 12px rgba(245, 197, 66, 0.6); }
+.plate .name { font-weight: 600; }
+.plate .meta { color: var(--muted); font-size: 12px; }
+.plate .offline { color: #ff9a9a; }
+.plate .rank-badge { color: var(--accent); font-weight: 700; }
+.team0 .name::before { content: "●"; color: #6cb6ff; margin-right: 4px; }
+.team1 .name::before { content: "●"; color: #ff8a65; margin-right: 4px; }
+
+.trick { min-height: calc(var(--card-h) * 0.8); display: flex; flex-direction: column; align-items: center; }
+.trick .desc { font-size: 12px; color: var(--muted); }
+.trick .pass { color: var(--muted); font-size: 16px; }
+
+/* 牌 */
+.cards { display: flex; flex-wrap: wrap; justify-content: center; }
+.card {
+  width: var(--card-w); height: var(--card-h); background: #fff; color: #222; border-radius: 5px;
+  border: 1px solid #999; padding: 2px 4px; display: flex; flex-direction: column; line-height: 1.05;
+  font-weight: 700; font-size: 15px; user-select: none; position: relative;
+  box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.25);
+}
+.card .s { font-size: 14px; }
+.card.red { color: var(--red); }
+.card.joker { font-size: 13px; }
+.card.joker.big { color: var(--red); }
+.card.wild { background: #fff6d6; border-color: var(--accent); }
+.card.level:not(.wild) { background: #eef6ff; }
+.cards.mini .card { --card-w: 34px; --card-h: 48px; font-size: 12px; }
+.cards.mini .card + .card { margin-left: -16px; }
+
+#handArea { padding: 8px 16px 16px; background: rgba(0, 0, 0, 0.18); }
+.actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 8px; }
+#options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+#options button.sel { outline: 2px solid var(--accent); }
+#hand { display: flex; flex-wrap: wrap; justify-content: center; padding-top: 14px; row-gap: 6px; }
+#hand .card { cursor: pointer; transition: transform 0.08s; margin-left: -22px; }
+#hand .card:first-child { margin-left: 0; }
+#hand .card.selected { transform: translateY(-14px); }
+
+#spectators { padding: 6px 16px 12px; color: var(--muted); font-size: 12px; }
+
+.result-box { background: var(--panel); border-radius: 10px; padding: 12px 16px; }
+.result-box ol { text-align: left; margin: 6px 0; padding-left: 22px; }
+
+#toast {
+  position: fixed; left: 50%; top: 20%; transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8); color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 10;
+}
+
+@media (max-width: 600px) {
+  :root { --card-w: 38px; --card-h: 56px; }
+  .table { padding: 8px; grid-template-columns: 1fr 1.4fr 1fr; }
+  .plate { min-width: 80px; padding: 4px 6px; }
+  #hand .card { margin-left: -20px; }
+  .cards.mini .card { --card-w: 28px; --card-h: 40px; font-size: 11px; }
+  .cards.mini .card + .card { margin-left: -14px; }
+}
