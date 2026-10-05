@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../server/game.js';
+import { chooseMove } from '../server/ai.js';
+import { Room } from '../server/room.js';
 import { findCombos } from '../shared/hint.js';
 import { analyze, canBeat, bombPower, TYPES } from '../shared/rules.js';
 
@@ -170,4 +172,42 @@ test('持久化往返', () => {
   assert.deepEqual(back.view(1), g.view(1));
   back.autoAct(0);
   assert.equal(back.actions, g.actions + 1);
+});
+
+// —— 机器人 ——
+
+const ctx = (hand, lastPlay, extra = {}) => ({
+  hand: cs(hand), level: 2, seat: 0, lastPlay, handCounts: [10, 20, 20, 20], finishOrder: [], ...extra,
+});
+
+test('AI 不压队友', () => {
+  const last = { seat: 2, combo: analyze(cs('S5'), 2)[0] };
+  assert.equal(chooseMove(ctx('S9 DK', last)), null);
+});
+
+test('AI 局面不紧张时不拆炸弹接小牌', () => {
+  const last = { seat: 1, combo: analyze(cs('S5'), 2)[0] };
+  assert.equal(chooseMove(ctx('S9 D9 C9 H9 S3', last)), null);
+  // 对手只剩 3 张时就要管
+  const urgent = chooseMove(ctx('S9 D9 C9 H9 S3', last, { handCounts: [5, 3, 20, 20] }));
+  assert.ok(urgent);
+});
+
+test('AI 首出优先甩连牌、对手剩 1 张时不出小单张', () => {
+  const lead = chooseMove(ctx('S3 D4 C5 S6 H7 SK', null));
+  assert.equal(lead.combo.type, TYPES.STRAIGHT);
+  const guard = chooseMove(ctx('S3 S8 D8', null, { handCounts: [3, 1, 20, 20] }));
+  assert.notEqual(guard.combo.type, TYPES.SINGLE);
+});
+
+test('机器人座位始终托管，不占用观战名单', () => {
+  const room = new Room('T', () => {});
+  room.addBot(1);
+  room.addBot(3);
+  assert.ok(room.seats[1].bot && room.seats[3].bot);
+  assert.notEqual(room.seats[1].name, room.seats[3].name);
+  room.game.startRound(0);
+  room.syncBots();
+  assert.deepEqual(room.game.auto, [false, true, false, true]);
+  room.dispose();
 });

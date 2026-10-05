@@ -27,6 +27,7 @@ const rooms = new Map();
 let dirty = false;
 
 function changed(room) {
+  room.syncBots();
   room.schedule();
   broadcast(room);
   dirty = true;
@@ -43,7 +44,7 @@ function getRoom(id) {
 }
 
 function broadcast(room) {
-  const seats = room.seats.map((s) => s && { name: s.name, online: room.isOnline(s.playerId) });
+  const seats = room.seats.map((s) => s && { name: s.name, bot: !!s.bot, online: !!s.bot || room.isOnline(s.playerId) });
   const spectators = [...room.members.values()]
     .filter((m) => room.seatOf(m.playerId) < 0)
     .map((m) => m.name);
@@ -157,6 +158,24 @@ io.on('connection', (socket) => {
     reply(cb, { ok: true });
     changed(room);
   });
+
+  // 机器人：仅限已入座玩家、对局开始前
+  socket.on('addBot', ({ seat } = {}, cb) => act(cb, (_seat, g) => {
+    if (g.phase !== 'waiting') return { ok: false, error: '对局进行中，不能加机器人' };
+    const targets = seat == null ? [0, 1, 2, 3].filter((i) => !room.seats[i]) : [seat];
+    if (!targets.length || targets.some((i) => !(i >= 0 && i < 4) || room.seats[i])) {
+      return { ok: false, error: '没有空位' };
+    }
+    targets.forEach((i) => room.addBot(i));
+    return { ok: true };
+  }));
+
+  socket.on('removeBot', ({ seat } = {}, cb) => act(cb, (_seat, g) => {
+    if (g.phase !== 'waiting') return { ok: false, error: '对局进行中，不能移除机器人' };
+    if (!room.seats[seat]?.bot) return { ok: false, error: '该座位不是机器人' };
+    room.seats[seat] = null;
+    return { ok: true };
+  }));
 
   socket.on('start', (_, cb) => act(cb, (_seat, g) => {
     if (g.phase !== 'waiting') return { ok: false, error: '对局已开始' };

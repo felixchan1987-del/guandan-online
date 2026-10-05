@@ -132,6 +132,8 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 #tributeInfo b { color: var(--text); }
 .timer { color: var(--accent); font-weight: 700; }
 .timer.urgent { color: #ff6b6b; }
+.bot-tag { background: #4a5a8a; color: #fff; border-radius: 4px; padding: 0 4px; }
+.plate button + button { margin-left: 4px; }
 .auto-tag { background: #8a6d00; color: #fff; border-radius: 4px; padding: 0 4px; }
 #hand .card.dim { filter: brightness(0.55); cursor: not-allowed; }
 .actions { flex-wrap: wrap; }

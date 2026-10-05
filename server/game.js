@@ -1,9 +1,9 @@
 // 一场掼蛋的状态机（不含网络），座位 0/2 为一队，1/3 为一队
 import {
   createDeck, shuffle, sortHand, playableOptions, upgradeAmount, describeCombo,
-  rankValue, bombPower, tributeCandidates, returnCandidates, BIG_JOKER,
+  rankValue, tributeCandidates, returnCandidates, BIG_JOKER,
 } from '../shared/rules.js';
-import { findCombos } from '../shared/hint.js';
+import { chooseMove } from './ai.js';
 
 export const teamOf = (seat) => seat % 2;
 export const partnerOf = (seat) => (seat + 2) % 4;
@@ -288,24 +288,15 @@ export class Game {
     }
   }
 
-  /** 简单托管策略：能一手出完就出完；首出出最小的牌型；跟牌不压队友，必要时才用炸弹 */
   aiChoose(seat) {
-    const hand = this.hands[seat];
-    const last = this.lastPlay;
-    const cands = findCombos(hand, this.level, last?.combo);
-    const finish = cands.find((c) => c.cards.length === hand.length);
-    if (finish) return finish;
-    const nonBomb = cands.filter((c) => bombPower(c.combo) === 0);
-    if (!last) {
-      const pool = nonBomb.length ? nonBomb : cands;
-      // 优先出小牌，同等大小时多带几张
-      return pool.slice().sort((a, b) =>
-        a.combo.key - b.combo.key || b.cards.length - a.cards.length || a.wilds - b.wilds)[0];
-    }
-    if (teamOf(last.seat) === teamOf(seat)) return null;
-    if (nonBomb.length) return nonBomb[0];
-    if (cands.length && this.hands[last.seat].length <= 8) return cands[0];
-    return null;
+    return chooseMove({
+      hand: this.hands[seat],
+      level: this.level,
+      seat,
+      lastPlay: this.lastPlay,
+      handCounts: this.hands.map((h) => h.length),
+      finishOrder: this.finishOrder,
+    });
   }
 
   /** 给某个视角的状态；seat 为 null 表示观战者 */

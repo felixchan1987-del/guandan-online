@@ -210,19 +210,28 @@ function initRoom(roomId) {
       const finishIdx = g.finishOrder ? g.finishOrder.indexOf(seat) : -1;
       const tags = [];
       if (s && !s.online) tags.push('<span class="offline">离线</span>');
-      if (inGame && g.auto[seat]) tags.push('<span class="auto-tag">托管</span>');
+      if (s?.bot) tags.push('<span class="bot-tag">机器人</span>');
+      else if (inGame && g.auto[seat]) tags.push('<span class="auto-tag">托管</span>');
       if (g.handCounts) tags.push(`剩 ${g.handCounts[seat]} 张`);
       if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="rank-badge">${FINISH_NAMES[finishIdx]}</span>`);
       if (inGame && pending.includes(seat)) tags.push(`<span class="timer" data-seat="${seat}"></span>`);
       plate.innerHTML =
-        `<div class="name">${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
+        `<div class="name">${s?.bot ? '🤖' : ''}${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
         `<div class="meta">${tags.join(' ')}</div>`;
-      if (!s && g.phase === 'waiting') {
-        const b = document.createElement('button');
-        b.className = 'small primary';
-        b.textContent = mySeat == null ? '坐下' : '换到这里';
-        b.onclick = () => emit('sit', { seat });
-        plate.appendChild(b);
+      if (g.phase === 'waiting') {
+        const seatBtn = (text, fn, cls = 'small') => {
+          const b = document.createElement('button');
+          b.className = cls;
+          b.textContent = text;
+          b.onclick = fn;
+          plate.appendChild(b);
+        };
+        if (!s) {
+          seatBtn(mySeat == null ? '坐下' : '换到这里', () => emit('sit', { seat }), 'small primary');
+          if (mySeat != null) seatBtn('加机器人', () => emit('addBot', { seat }));
+        } else if (s.bot && mySeat != null) {
+          seatBtn('移除', () => emit('removeBot', { seat }));
+        }
       }
       box.appendChild(plate);
 
@@ -255,9 +264,10 @@ function initRoom(roomId) {
 
     if (g.phase === 'waiting') {
       const n = seats.filter(Boolean).length;
-      status.textContent = n < 4 ? `等待玩家入座（${n}/4）· 把链接发给朋友` : '人已到齐';
+      status.textContent = n < 4 ? `等待玩家入座（${n}/4）· 把链接发给朋友，或用机器人补位` : '人已到齐';
       if (mySeat != null) {
         if (n === 4) btn('开始游戏', () => emit('start'), true);
+        else btn('空位补机器人', () => emit('addBot', {}), true);
         btn('离座观战', () => emit('stand'));
       }
     } else if (g.phase === 'tribute') {
