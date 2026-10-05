@@ -233,3 +233,17 @@ export function upgradeAmount(finishOrder) {
   if (pos === 2) return 2;
   return 1;
 }
+
+/** 进贡可选的牌：除逢人配外牌力最大的牌 */
+export function tributeCandidates(hand, level) {
+  const pool = hand.filter((c) => !isWild(c, level));
+  if (!pool.length) return hand.slice();
+  const max = Math.max(...pool.map((c) => rankValue(c.rank, level)));
+  return pool.filter((c) => rankValue(c.rank, level) === max);
+}
+
+/** 还贡可选的牌：点数 10 及以下（没有则任意牌） */
+export function returnCandidates(hand) {
+  const small = hand.filter((c) => c.rank <= 10);
+  return small.length ? small : hand.slice();
+}

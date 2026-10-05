@@ -160,8 +160,10 @@ test('双下升三级并结束本局', () => {
   assert.ok(g.view(null).revealed);
   assert.equal(g.view(null).myHand, null);
   assert.ok(g.nextRound());
-  assert.equal(g.turn, 0); // 头游先出
   assert.equal(g.level, 5);
+  // 双下：下一局先进贡（或抗贡时头游先出）
+  if (g.tribute.kind === 'resist') assert.equal(g.turn, 0);
+  else assert.deepEqual(g.pendingSeats().sort(), [1, 3]);
 });
 
 test('打过 A 赢得整场', () => {

@@ -126,3 +126,25 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   .cards.mini .card { --card-w: 28px; --card-h: 40px; font-size: 11px; }
   .cards.mini .card + .card { margin-left: -14px; }
 }
+
+/* 进贡、计时、托管 */
+#tributeInfo { font-size: 13px; color: var(--muted); max-width: 420px; }
+#tributeInfo b { color: var(--text); }
+.timer { color: var(--accent); font-weight: 700; }
+.timer.urgent { color: #ff6b6b; }
+.auto-tag { background: #8a6d00; color: #fff; border-radius: 4px; padding: 0 4px; }
+#hand .card.dim { filter: brightness(0.55); cursor: not-allowed; }
+.actions { flex-wrap: wrap; }
+
+/* 聊天 */
+#chatPanel {
+  position: fixed; right: 16px; top: 52px; z-index: 5; width: 300px; max-width: calc(100vw - 32px);
+  background: rgba(10, 30, 20, 0.95); border-radius: 10px; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+#chatLog { height: 220px; overflow-y: auto; font-size: 13px; word-break: break-all; }
+#chatLog .team0 { color: #6cb6ff; }
+#chatLog .team1 { color: #ff8a65; }
+.quick-row { display: flex; flex-wrap: wrap; gap: 4px; }
+#chatForm { display: flex; gap: 6px; }
+#chatForm input { flex: 1; }

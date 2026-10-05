@@ -26,7 +26,7 @@
     <header class="topbar">
       <div>房间 <b id="roomCode"></b> <button id="copyBtn" class="small">复制链接</button></div>
       <div id="levelInfo"></div>
-      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button></div>
+      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="chatBtn" class="small">聊天</button></div>
     </header>
 
     <main class="table">
@@ -35,6 +35,7 @@
       <div class="seat right" data-pos="1"></div>
       <div class="center">
         <div id="status"></div>
+        <div id="tributeInfo"></div>
         <div id="centerActions"></div>
       </div>
       <div class="seat bottom" data-pos="0"></div>
@@ -43,7 +44,9 @@
     <div id="handArea" class="hidden">
       <div id="options"></div>
       <div class="actions">
+        <button id="autoBtn">托管</button>
         <button id="passBtn">不出</button>
+        <button id="hintBtn">提示</button>
         <button id="clearBtn">重选</button>
         <button id="playBtn" class="primary">出牌</button>
       </div>
@@ -52,6 +55,20 @@
 
     <footer id="spectators"></footer>
   </section>
+
+  <div id="chatPanel" class="hidden">
+    <div id="chatLog"></div>
+    <div class="quick-row">
+      <button class="quick small">快点吧</button>
+      <button class="quick small">好牌！</button>
+      <button class="quick small">配合得不错</button>
+      <button class="quick small">再来一局</button>
+    </div>
+    <form id="chatForm">
+      <input id="chatInput" maxlength="100" placeholder="说点什么…" autocomplete="off">
+      <button class="primary">发送</button>
+    </form>
+  </div>
 
   <div id="toast" class="hidden"></div>
 
