@@ -1,6 +1,6 @@
 import {
   isWild, rankLabel, SUIT_SYMBOLS, playableOptions, describeCombo,
-  tributeCandidates, returnCandidates, TYPES, TYPE_NAMES,
+  tributeCandidates, returnCandidates, TYPES, TYPE_NAMES, bombPower,
 } from '/shared/rules.js';
 import { findCombos } from '/shared/hint.js';
 import { arrangeHand } from '/shared/arrange.js';
@@ -93,6 +93,9 @@ function cardText(card) {
   if (card.suit === 'J') return card.rank === 17 ? '大王' : '小王';
   return `${SUIT_SYMBOLS[card.suit]}${rankLabel(card.rank)}`;
 }
+
+// 可安装为手机桌面应用（PWA）
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
 // —— 路由 ——
 const match = location.pathname.match(/^\/r\/([A-Za-z0-9]+)/);
@@ -248,8 +251,81 @@ function initRoom(roomId) {
     const ids = new Set((s.game.myHand || []).map((c) => c.id));
     for (const id of selected) if (!ids.has(id)) selected.delete(id);
     hintList = null;
+    detectBomb(prev, s);
     render();
+    keepAwake(['tribute', 'return', 'playing'].includes(s.game.phase) && !s.paused);
   });
+
+  // —— 炸弹特效：新出的牌是炸弹 / 同花顺 / 天王炸时弹出横幅并震动牌桌 ——
+  const playSig = (st) => {
+    const lp = st?.game?.lastPlay;
+    const t = lp && st.game.trick?.[lp.seat];
+    return t ? `${st.game.roundNo}:${lp.seat}:${t.cards.map((c) => c.id).join(',')}` : '';
+  };
+  function detectBomb(prev, cur) {
+    const lp = cur.game.lastPlay;
+    if (!prev || !lp || playSig(prev) === playSig(cur) || !bombPower(lp.combo)) return;
+    const name = cur.seats[lp.seat]?.name || '';
+    const title = lp.combo.type === TYPES.JOKER_BOMB ? '天王炸！'
+      : lp.combo.type === TYPES.STRAIGHT_FLUSH ? '同花顺！' : `${lp.combo.len} 炸！`;
+    const fx = $('#fx');
+    fx.querySelector('.fx-title').textContent = title;
+    fx.querySelector('.fx-sub').textContent = name;
+    fx.className = `fx p${Math.min(4, Math.floor(bombPower(lp.combo) / 2))}`;
+    void fx.offsetWidth; // 重新触发动画
+    fx.classList.add('show');
+    document.querySelector('.table').classList.remove('shake');
+    void document.querySelector('.table').offsetWidth;
+    document.querySelector('.table').classList.add('shake');
+    clearTimeout(detectBomb.t);
+    detectBomb.t = setTimeout(() => fx.classList.add('hidden'), 1600);
+  }
+
+  // —— 打牌时保持屏幕常亮（浏览器支持时） ——
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!on && wakeLock) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    } catch { /* 不支持或被拒绝时忽略 */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (state) keepAwake(['tribute', 'return', 'playing'].includes(state.game.phase) && !state.paused);
+  });
+
+  // —— 记牌器 ——
+  let counterOn = store.get('gd_counter') !== '0';
+  $('#counterBtn').onclick = () => {
+    counterOn = !counterOn;
+    store.set('gd_counter', counterOn ? '1' : '0');
+    renderCounter();
+  };
+  function renderCounter() {
+    const g = state.game;
+    const el = $('#counter');
+    const show = counterOn && g.playedCounts && g.phase !== 'waiting';
+    el.classList.toggle('hidden', !show);
+    $('#counterBtn').classList.toggle('on', counterOn);
+    if (!show) return;
+    // 玩家：外面还剩几张（总数 - 已出 - 自己手里）；观战：还没出的张数
+    const mine = {};
+    for (const c of g.myHand || []) mine[c.rank] = (mine[c.rank] || 0) + 1;
+    const order = [17, 16, g.level, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]
+      .filter((r, i, a) => a.indexOf(r) === i);
+    const label = { 17: '大', 16: '小' };
+    el.innerHTML = `<span class="ct-title">${state.mySeat == null ? '未出' : '外面'}</span>` + order.map((r) => {
+      const total = r >= 16 ? 2 : 8;
+      const left = total - (g.playedCounts[r] || 0) - (mine[r] || 0);
+      const cls = [r >= 16 ? 'joker' : '', r === g.level ? 'level' : '', left === 0 ? 'zero' : ''].join(' ');
+      const tip = r === 17 ? '大王' : r === 16 ? '小王' : r === g.level ? '级牌' : '';
+      return `<span class="ct ${cls}" title="${tip}"><i>${label[r] || rankLabel(r)}</i><b>${left}</b></span>`;
+    }).join('');
+  }
 
   // —— 聊天 ——
   const chatLog = $('#chatLog');
@@ -523,9 +599,12 @@ function initRoom(roomId) {
       else if (inGame && g.auto[seat]) tags.push('<span class="tag auto">托管</span>');
       if (g.handCounts) tags.push(`<span class="tag count">剩 ${g.handCounts[seat]} 张</span>`);
       if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="tag rank">${FINISH_NAMES[finishIdx]}</span>`);
-      if (inGame && pending.includes(seat)) tags.push(`<span class="timer" data-seat="${seat}"></span>`);
       plate.innerHTML =
-        avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2 }) +
+        `<div class="av-wrap">${avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2 })}` +
+        (inGame && pending.includes(seat)
+          ? '<svg class="ring" viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="46"/>' +
+            '<circle class="prog" cx="50" cy="50" r="46" pathLength="100"/></svg><span class="timer"></span>'
+          : '') + '</div>' +
         `<div class="plate-text"><div class="name">${s ? nameHtml(seat) : '空位'}${seat === mySeat ? '（我）' : ''}</div>` +
         `<div class="meta">${tags.join('')}</div></div>`;
       if (mySeat == null && seat !== viewSeat) {
@@ -656,6 +735,7 @@ function initRoom(roomId) {
     $('#spectators').textContent = spectators.length ? `观战（${spectators.length}）：${spectators.join('、')}` : '暂无观战';
 
     renderHand();
+    renderCounter();
     if (godMode) renderGod();
     updateTimers();
   }
@@ -758,7 +838,8 @@ function initRoom(roomId) {
     }
     const landscape = window.innerWidth > window.innerHeight;
     handEl.classList.toggle('combo', arrangeMode === 'combo');
-    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36));
+    const phone = window.innerWidth <= 600 && !landscape;
+    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : phone ? 0.3 : 0.36));
     updateSelection();
   }
 
@@ -824,13 +905,19 @@ function initRoom(roomId) {
     $('#autoBtn').classList.toggle('on', !!auto);
   }
 
+  /** 头像外圈倒计时：圆环随剩余时间缩短，最后 5 秒变红闪烁 */
   function updateTimers() {
     if (!state || !state.deadline) return;
-    const left = Math.max(0, Math.ceil((state.deadline - (Date.now() + clockOffset)) / 1000));
-    document.querySelectorAll('.timer').forEach((el) => {
-      el.textContent = `⏱${left}`;
-      el.classList.toggle('urgent', left <= 5);
+    const ms = Math.max(0, state.deadline - (Date.now() + clockOffset));
+    const left = Math.ceil(ms / 1000);
+    const frac = Math.min(1, ms / (state.turnMs || 30000));
+    document.querySelectorAll('.av-wrap').forEach((wrap) => {
+      const prog = wrap.querySelector('.prog');
+      if (!prog) return;
+      prog.style.strokeDashoffset = String(100 - frac * 100);
+      wrap.classList.toggle('urgent', left <= 5);
+      wrap.querySelector('.timer').textContent = left;
     });
   }
-  setInterval(updateTimers, 500);
+  setInterval(updateTimers, 200);
 }

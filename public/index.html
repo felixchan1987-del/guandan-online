@@ -2,8 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>掼蛋在线</title>
+  <meta name="theme-color" content="#1b4c9c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="掼蛋在线">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -33,6 +41,7 @@
       <button id="copyBtn" class="chip">⧉ 复制链接</button>
       <span id="roleChip" class="chip ghost hidden">观战中</span>
       <div class="spacer"></div>
+      <button id="counterBtn" class="icon-btn" title="记牌器">🃏</button>
       <button id="chatBtn" class="icon-btn" title="聊天">💬<span id="chatBadge" class="badge hidden"></span></button>
       <button id="moreBtn" class="icon-btn" title="更多">⋯</button>
     </header>
@@ -42,6 +51,8 @@
       <div class="sb-mid"><span id="roundNo">未开始</span><b>打 <em id="lvCur">2</em></b></div>
       <div class="sb-team t1"><span>红队</span><b id="lv1">2</b><small id="af1"></small></div>
     </div>
+
+    <div id="counter" class="counter hidden"></div>
 
     <main class="table">
       <div class="seat top" data-pos="2"></div>
@@ -173,6 +184,7 @@
 
   <input type="file" id="avatarFile" accept="image/*" hidden>
   <div id="toast" class="hidden"></div>
+  <div id="fx" class="fx hidden"><div class="fx-title"></div><div class="fx-sub"></div></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/app.js"></script>

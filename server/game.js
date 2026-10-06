@@ -44,6 +44,7 @@ export class Game {
     this.lastPlay = null; // { seat, cards, combo }
     this.passCount = 0;
     this.trick = [null, null, null, null]; // 本轮每个座位的最近动作，供界面显示
+    this.playedCounts = {}; // 本局已出的牌：点数 -> 张数（公开信息，供记牌器）
     this.tribute = null;
     this.actions += 1;
     if (this.lastResult && leader == null) {
@@ -166,6 +167,7 @@ export class Game {
     const combo = options[Math.min(Math.max(optionIndex | 0, 0), options.length - 1)];
 
     this.hands[seat] = hand.filter((c) => !ids.has(c.id));
+    for (const c of cards) this.playedCounts[c.rank] = (this.playedCounts[c.rank] || 0) + 1;
     if (lead) this.trick = [null, null, null, null];
     this.lastPlay = { seat, cards, combo };
     this.trick[seat] = { type: 'play', cards, desc: describeCombo(combo) };
@@ -337,6 +339,7 @@ export class Game {
       finishOrder: this.finishOrder,
       lastPlay: this.lastPlay && { seat: this.lastPlay.seat, combo: this.lastPlay.combo },
       trick: this.trick,
+      playedCounts: this.playedCounts || {},
       tribute,
       myHand: seat == null ? null : this.hands[seat],
       allHands: seat == null && god ? this.hands : null,
