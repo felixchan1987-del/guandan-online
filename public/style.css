@@ -244,3 +244,19 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   padding: 8px 16px; cursor: pointer;
 }
 .paused-tag { color: var(--accent); font-weight: 700; }
+
+/* 上帝视角：观战者看到的每家手牌 */
+.cards.god-hand { max-width: 300px; row-gap: 2px; padding-left: 12px; justify-content: center; }
+.cards.god-hand .card { --card-w: 26px; --card-h: 36px; font-size: 11px; padding: 1px 2px; margin-left: -12px; }
+.cards.god-hand .card + .card { margin-left: -12px; }
+.seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 200px; }
+@media (max-width: 600px) {
+  .cards.god-hand { max-width: 150px; }
+  .seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 110px; }
+  .cards.god-hand .card { --card-w: 22px; --card-h: 30px; font-size: 10px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .cards.god-hand { max-width: 260px; }
+  .seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 170px; }
+  .cards.god-hand .card { --card-w: 22px; --card-h: 30px; font-size: 10px; }
+}

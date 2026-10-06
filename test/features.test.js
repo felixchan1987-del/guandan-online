@@ -211,3 +211,12 @@ test('机器人座位始终托管，不占用观战名单', () => {
   assert.deepEqual(room.game.auto, [false, true, false, true]);
   room.dispose();
 });
+
+test('上帝视角只对观战者生效', () => {
+  const g = new Game();
+  g.startRound(0);
+  assert.equal(g.view(null).allHands, null);
+  assert.equal(g.view(null, { god: true }).allHands.length, 4);
+  assert.equal(g.view(null, { god: true }).allHands[2].length, 27);
+  assert.equal(g.view(1, { god: true }).allHands, null); // 玩家拿不到别人的手牌
+});

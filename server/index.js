@@ -61,7 +61,8 @@ function broadcast(room) {
       deadline: room.deadline,
       turnMs: TURN_MS,
       serverNow: Date.now(),
-      game: room.game.view(seat < 0 ? null : seat),
+      god: seat < 0 && !!m.god,
+      game: room.game.view(seat < 0 ? null : seat, { god: seat < 0 && m.god }),
     });
   }
 }
@@ -130,12 +131,12 @@ io.on('connection', (socket) => {
   const playAct = (cb, fn) => act(cb, (seat, g) =>
     (room.paused ? { ok: false, error: '对局已暂停，点「继续」后再操作' } : fn(seat, g)));
 
-  socket.on('join', ({ roomId, playerId, name } = {}, cb) => {
+  socket.on('join', ({ roomId, playerId, name, god } = {}, cb) => {
     roomId = String(roomId || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     if (!roomId || !playerId) return reply(cb, { ok: false, error: '参数错误' });
     if (room && room.id !== roomId) room.members.delete(socket.id);
     room = getRoom(roomId);
-    me = { playerId: String(playerId).slice(0, 64), name: cleanName(name) };
+    me = { playerId: String(playerId).slice(0, 64), name: cleanName(name), god: !!god };
     room.members.set(socket.id, me);
     socket.join(roomId);
     const seat = mySeat();
@@ -214,6 +215,13 @@ io.on('connection', (socket) => {
     }
     return g.nextRound() ? { ok: true } : { ok: false, error: '当前不能开始下一局' };
   }));
+
+  // 上帝视角：仅观战者生效，入座后自动失效
+  socket.on('godView', ({ on } = {}) => {
+    if (!room) return;
+    me.god = !!on;
+    broadcast(room);
+  });
 
   // —— 存档 / 读档 / 暂停 ——
   socket.on('save', (_, cb) => act(cb, (_seat, g) => {

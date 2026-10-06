@@ -299,8 +299,8 @@ export class Game {
     });
   }
 
-  /** 给某个视角的状态；seat 为 null 表示观战者 */
-  view(seat) {
+  /** 给某个视角的状态；seat 为 null 表示观战者，god 为观战者的上帝视角（可看全部手牌） */
+  view(seat, { god = false } = {}) {
     const base = {
       phase: this.phase,
       teamLevels: this.teamLevels,
@@ -339,6 +339,7 @@ export class Game {
       trick: this.trick,
       tribute,
       myHand: seat == null ? null : this.hands[seat],
+      allHands: seat == null && god ? this.hands : null,
       // 局结束后公开所有剩余手牌
       revealed: this.phase === 'roundOver' || this.phase === 'matchOver' ? this.hands : null,
     };

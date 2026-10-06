@@ -92,7 +92,13 @@ function initRoom(roomId) {
 
   const emit = (event, data) => socket.emit(event, data, (r) => { if (r && !r.ok) toast(r.error); });
 
-  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName }));
+  let godView = store.get('gd_god') === '1';
+  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: godView }));
+  $('#godBtn').onclick = () => {
+    godView = !godView;
+    store.set('gd_god', godView ? '1' : '0');
+    socket.emit('godView', { on: godView });
+  };
   socket.on('disconnect', () => toast('连接断开，正在重连…'));
   let wantLoad = new URLSearchParams(location.search).has('load');
   socket.on('state', (s) => {
@@ -231,7 +237,7 @@ function initRoom(roomId) {
     if (n && n.trim()) {
       myName = n.trim().slice(0, 12);
       store.set('gd_name', myName);
-      socket.emit('join', { roomId, playerId, name: myName });
+      socket.emit('join', { roomId, playerId, name: myName, god: godView });
     }
   };
 
@@ -350,6 +356,9 @@ function initRoom(roomId) {
     const pending = g.pending || [];
     const seatsOpen = g.phase === 'waiting' || paused;
 
+    $('#godBtn').classList.toggle('hidden', mySeat != null);
+    $('#godBtn').textContent = state.god ? '关闭上帝视角' : '上帝视角';
+    $('#godBtn').classList.toggle('primary', !!state.god);
     $('#saveBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting');
     $('#pauseBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting' || g.phase === 'matchOver' || paused);
 
@@ -410,6 +419,12 @@ function initRoom(roomId) {
         trick.innerHTML = '<div class="pass">不出</div>';
       }
       if (pos === 0) box.prepend(trick); else box.appendChild(trick);
+
+      // 上帝视角：观战者看到每家手牌
+      if (g.allHands && g.allHands[seat]?.length) {
+        const godHand = cardsEl(g.allHands[seat], g.level, 'mini god-hand');
+        box.appendChild(godHand);
+      }
     }
 
     // 中央状态与按钮
