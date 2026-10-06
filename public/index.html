@@ -69,12 +69,15 @@
     </main>
 
     <div id="handArea" class="hidden">
-      <div id="options"></div>
+      <!-- 只在轮到自己时浮现在手牌上方，不占布局空间 -->
       <div class="actions">
-        <button id="playBtn" class="primary big-btn"><span class="ic">♠</span><span class="lbl">出牌</span></button>
-        <button id="passBtn" class="big-btn"><span class="ic">⊘</span><span class="lbl">不要</span></button>
-        <button id="hintBtn" class="big-btn"><span class="ic">💡</span><span class="lbl">提示</span></button>
-        <button id="autoBtn" class="big-btn"><span class="ic">🤖</span><span class="lbl">托管</span></button>
+        <div id="options"></div>
+        <div class="act-row">
+          <button id="passBtn" class="big-btn"><span class="ic">⊘</span><span class="lbl">不要</span></button>
+          <button id="hintBtn" class="big-btn"><span class="ic">💡</span><span class="lbl">提示</span></button>
+          <button id="playBtn" class="primary big-btn"><span class="ic">♠</span><span class="lbl">出牌</span></button>
+        </div>
+        <button id="cancelAutoBtn" class="big-btn auto-on-btn">🤖 托管中 · 点此取消</button>
       </div>
       <div id="hand" class="hand-cols"></div>
       <div class="tools">
@@ -82,7 +85,7 @@
         <button id="arrangeBtn" class="small">一键理牌</button>
         <button id="sfBtn" class="small">同花顺</button>
         <button id="clearBtn" class="small">重选</button>
-        <span class="rotate-tip">📱 横屏打牌更清楚</span>
+        <button id="autoBtn" class="small"><span class="lbl">托管</span></button>
       </div>
     </div>
 

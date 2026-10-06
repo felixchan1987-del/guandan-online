@@ -269,7 +269,22 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   padding: 8px 12px 12px; flex: none;
   background: linear-gradient(180deg, rgba(8, 26, 64, 0.0), rgba(8, 26, 64, 0.55) 30%);
 }
-.actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+/* 操作按钮浮在自己座位上方的桌面空白处，只在轮到自己（或托管中）时出现，不占布局空间 */
+.seat.bottom { position: relative; }
+.actions {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 6px); z-index: 4; width: max-content; max-width: 100vw;
+  display: none; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+}
+.actions > * { pointer-events: auto; }
+.actions.show, .actions.auto { display: flex; animation: act-in 0.18s ease-out; }
+.actions.auto .act-row, .actions.auto #options { display: none; }
+.actions:not(.auto) .auto-on-btn { display: none; }
+.act-row { display: flex; justify-content: center; gap: 10px; }
+.act-row .big-btn { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); background: rgba(10, 30, 70, 0.92); }
+.act-row .big-btn.primary { background: linear-gradient(180deg, #4aa3ff, #1d6ef5); }
+.auto-on-btn { background: var(--accent) !important; color: #4a3500; border-color: var(--accent); font-weight: 700; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); }
+@keyframes act-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+#autoBtn.on { background: var(--accent); color: #4a3500; border-color: var(--accent); }
 .big-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 92px;
   padding: 9px 18px; border-radius: 14px; font-size: 15px; white-space: nowrap;
@@ -277,8 +292,8 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 }
 .big-btn.primary { min-width: 120px; }
 .big-btn .ic { font-size: 15px; }
-#autoBtn.on { background: var(--accent); color: #4a3500; border-color: var(--accent); }
-#options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+#options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+#options button { background: rgba(10, 30, 70, 0.92); }
 #options button.sel { border-color: var(--accent); color: var(--accent); }
 .tools { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .rotate-tip { display: none; color: var(--muted); font-size: 12px; }
@@ -440,7 +455,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   .cards.mini .card + .card { margin-left: -14px; }
   .big-btn { min-width: 0; padding: 9px 14px; flex: 1; }
   .big-btn.primary { min-width: 0; flex: 1.4; }
-  .actions { gap: 6px; flex-wrap: nowrap; }
+  .act-row { gap: 6px; }
   .gp-all { gap: 8px; }
   .gp-who { flex-wrap: wrap; gap: 4px 6px; }
   .gp-mid { width: 64px; height: 64px; }
@@ -482,14 +497,11 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   #handArea {
     padding: 2px 10px 4px;
     display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: end;
-    grid-template-areas: "opts opts" "act hand" "act tools";
+    grid-template-areas: "tools hand";
   }
-  #options { grid-area: opts; margin-bottom: 0; }
-  .actions { grid-area: act; display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 4px; align-self: center; }
-  .big-btn { min-width: 0; padding: 6px 10px; font-size: 13px; border-radius: 10px; }
-  .big-btn.primary { min-width: 0; }
+  .big-btn { min-width: 0; padding: 6px 14px; font-size: 13px; border-radius: 10px; }
   .tools button { padding: 2px 8px; }
-  .tools { grid-area: tools; margin: 4px 0 0; gap: 6px; }
+  .tools { grid-area: tools; flex-direction: column; margin: 0; gap: 4px; align-self: center; }
   #hand { grid-area: hand; padding-top: 6px; min-width: 0; }
   #spectators { display: none; }
   .god-fab { bottom: 10px; padding: 5px 12px; }
@@ -575,7 +587,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   .trick { min-height: 0; }
   #status { font-size: 13px; }
   #handArea { padding: 4px 8px 6px; }
-  .actions { margin-bottom: 2px; }
+
   .big-btn { padding: 7px 10px; font-size: 14px; }
   .tools { margin-top: 4px; }
   .tools button { padding: 2px 8px; }
@@ -667,3 +679,22 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 .recent button small { color: var(--muted); }
 
 .hand-cols.narrow .card .corner { display: none; }
+
+/* 手机横屏：操作按钮嵌在桌面中间，跟在提示文字下面 */
+.actions.inline { position: static; transform: none; width: auto; max-width: none; }
+.actions.inline.show, .actions.inline.auto { animation: none; }
+.actions.inline .big-btn { padding: 5px 14px; }
+/* 列重叠时，标签收紧一点，保证“10♥”这类也能露出来 */
+.hand-cols .card .lbl { letter-spacing: -1px; }
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .counter { margin-bottom: 2px; padding: 1px 6px; }
+  .counter .ct i { font-size: 10px; }
+  .counter .ct b { font-size: 12px; }
+  .actions.inline { gap: 3px; }
+  .actions.inline .big-btn { padding: 3px 14px; font-size: 13px; }
+  #status { line-height: 1.25; }
+}
+
+.seat.bottom:has(.actions.inline.show) .trick, .seat.bottom:has(.actions.inline.auto) .trick { display: none; }
+.actions.inline .act-row { gap: 6px; }

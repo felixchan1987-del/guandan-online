@@ -728,6 +728,7 @@ function initRoom(roomId) {
 
   // 点按或滑动多选
   const handEl = $('#hand');
+  const actionsEl = document.querySelector('.actions'); // 渲染时挂到自己座位上方
   let drag = null;
   const applyDrag = (id) => {
     if (drag.on) selected.add(id); else selected.delete(id);
@@ -759,6 +760,7 @@ function initRoom(roomId) {
   for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, () => { drag = null; });
   window.addEventListener('resize', () => { if (state) render(); });
   $('#autoBtn').onclick = () => emit('auto', { on: !state.game.auto[state.mySeat] });
+  $('#cancelAutoBtn').onclick = () => emit('auto', { on: false });
 
   // —— 渲染 ——
   function cardEl(card, level, big = false) {
@@ -886,6 +888,13 @@ function initRoom(roomId) {
       }
       if (animSeats.has(seat)) trick.classList.add(`fly-${pos}`);
       if (pos === 0) box.prepend(trick); else box.appendChild(trick);
+      if (pos === 0 && mySeat != null) {
+        // 手机横屏高度不够：按钮和自己的头像排在同一行（轮到自己时替换掉自己上一手的牌）；
+        // 其他情况浮在自己座位上方
+        const inline = window.innerWidth > window.innerHeight && window.innerHeight < 520;
+        actionsEl.classList.toggle('inline', inline);
+        if (inline) box.prepend(actionsEl); else box.appendChild(actionsEl);
+      }
 
     }
 
@@ -1082,19 +1091,21 @@ function initRoom(roomId) {
     handEl.classList.toggle('combo', arrangeMode === 'combo');
     const phone = window.innerWidth <= 600 && !landscape;
     const scale = { s: 0.82, m: 1, l: 1.18 }[settings.cardSize] || 1;
-    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : phone ? 0.3 : 0.36), 78, scale);
+    // 操作按钮不再占一行，手牌可以更高
+    // 竖屏时列多、宽度紧：牌宽至少 38px，列与列适当重叠（每列仍露出点数和花色）
+    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.44 : phone ? 0.34 : 0.4), 84, scale, phone ? 38 : 30);
     updateSelection();
   }
 
   /** 按可用宽高计算列式手牌的牌宽：尽量大，放不下时列与列重叠 */
-  function sizeCols(el, cols, maxH, maxW = 78, scale = 1) {
+  function sizeCols(el, cols, maxH, maxW = 78, scale = 1, minW = 30) {
     const n = cols.length || 1;
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = el.clientWidth;
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
     const gap = el.classList.contains('combo') ? 7 : 3;
     // scale 来自设置里的牌面大小：放大时允许列与列重叠得更多
-    let w = Math.max(30, Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n)) * scale;
+    let w = Math.max(minW, Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n)) * scale;
     const overlap = Math.max(0, (n * w + gap * (n - 1) - avail) / Math.max(1, n - 1));
     el.style.setProperty('--hw', `${Math.floor(w)}px`);
     el.classList.toggle('narrow', w < 40); // 牌太窄时隐藏右下角标，避免和中间花色挤在一起
@@ -1145,9 +1156,12 @@ function initRoom(roomId) {
     $('#hintBtn').disabled = !myAction;
     $('#sfBtn').classList.toggle('hidden', tributeMode);
     $('#groupBtn').disabled = !selected.size;
-    const auto = g.auto[me];
+    const auto = !!g.auto[me] && ['tribute', 'return', 'playing'].includes(g.phase) && !state.paused;
     $('#autoBtn .lbl').textContent = auto ? '取消托管' : '托管';
-    $('#autoBtn').classList.toggle('on', !!auto);
+    $('#autoBtn').classList.toggle('on', auto);
+    // 操作按钮只在轮到自己时浮现；托管中显示「取消托管」
+    actionsEl.classList.toggle('show', myAction && !auto);
+    actionsEl.classList.toggle('auto', auto);
   }
 
   /** 头像外圈倒计时：圆环随剩余时间缩短，最后 5 秒变红闪烁 */
