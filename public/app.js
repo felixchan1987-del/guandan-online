@@ -94,6 +94,15 @@ function initRoom(roomId) {
 
   let godView = store.get('gd_god') === '1';
   socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: godView }));
+  // 观战视角：看哪一家（该家显示在下方）
+  let viewSeat = Number(store.get('gd_view')) || 0;
+  const setView = (seat) => {
+    viewSeat = seat;
+    store.set('gd_view', String(seat));
+    selected.clear();
+    render();
+  };
+  document.querySelectorAll('#viewSel button').forEach((b) => { b.onclick = () => setView(Number(b.dataset.seat)); });
   $('#godBtn').onclick = () => {
     godView = !godView;
     store.set('gd_god', godView ? '1' : '0');
@@ -292,7 +301,7 @@ function initRoom(roomId) {
   };
   handEl.addEventListener('pointerdown', (e) => {
     const el = e.target.closest('.card');
-    if (!el) return;
+    if (!el || state.mySeat == null) return; // 观战时手牌只读
     e.preventDefault();
     const id = el.dataset.id;
     if (handAllowed) {
@@ -313,7 +322,7 @@ function initRoom(roomId) {
     }
   });
   for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, () => { drag = null; });
-  window.addEventListener('resize', () => { if (state) renderHand(true); });
+  window.addEventListener('resize', () => { if (state) render(); });
   $('#autoBtn').onclick = () => emit('auto', { on: !state.game.auto[state.mySeat] });
 
   // —— 渲染 ——
@@ -350,14 +359,23 @@ function initRoom(roomId) {
 
   function render() {
     const { seats, mySeat, game: g, spectators } = state;
-    const viewer = mySeat ?? 0;
+    const viewer = mySeat ?? viewSeat;
+    // 宽屏才在座位旁显示小手牌；手机上只看当前视角这一家（大字显示在下方）
+    const roomy = window.innerWidth >= 900 && window.innerHeight >= 600;
+    $('#viewSel').classList.toggle('hidden', mySeat != null);
+    document.querySelectorAll('#viewSel button').forEach((b) => {
+      const s = Number(b.dataset.seat);
+      b.textContent = seats[s] ? seats[s].name.replace('机器人·', '🤖').slice(0, 4) : `${s + 1}号`;
+      b.className = `small team${s % 2}${s === viewSeat ? ' primary' : ''}`;
+    });
     const paused = state.paused;
     const inGame = ['tribute', 'return', 'playing'].includes(g.phase) && !paused;
     const pending = g.pending || [];
     const seatsOpen = g.phase === 'waiting' || paused;
 
     $('#godBtn').classList.toggle('hidden', mySeat != null);
-    $('#godBtn').textContent = state.god ? '关闭上帝视角' : '上帝视角';
+    $('#godBtn').textContent = state.god ? '上帝视角 ✓' : '上帝视角';
+    $('#godBtn').title = state.god ? '点击关闭' : '查看四家手牌';
     $('#godBtn').classList.toggle('primary', !!state.god);
     $('#saveBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting');
     $('#pauseBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting' || g.phase === 'matchOver' || paused);
@@ -389,6 +407,11 @@ function initRoom(roomId) {
       plate.innerHTML =
         `<div class="name">${s?.bot ? '🤖' : ''}${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
         `<div class="meta">${tags.join(' ')}</div>`;
+      if (mySeat == null && seat !== viewSeat) {
+        plate.classList.add('clickable');
+        plate.title = '切换到这一家的视角';
+        plate.onclick = (e) => { if (!e.target.closest('button')) setView(seat); };
+      }
       if (seatsOpen) {
         const seatBtn = (text, fn, cls = 'small') => {
           const b = document.createElement('button');
@@ -421,7 +444,7 @@ function initRoom(roomId) {
       if (pos === 0) box.prepend(trick); else box.appendChild(trick);
 
       // 上帝视角：观战者看到每家手牌
-      if (g.allHands && g.allHands[seat]?.length) {
+      if (g.allHands && g.allHands[seat]?.length && seat !== viewer && roomy) {
         const godHand = cardsEl(g.allHands[seat], g.level, 'mini god-hand');
         box.appendChild(godHand);
       }
@@ -520,10 +543,12 @@ function initRoom(roomId) {
   function renderHand(keepHint) {
     const g = state.game;
     const area = $('#handArea');
-    const hand = g.myHand;
+    const readOnly = state.mySeat == null;
+    const hand = readOnly ? g.allHands?.[viewSeat] : g.myHand;
     const inGame = ['tribute', 'return', 'playing'].includes(g.phase);
     if (!hand || !inGame) { area.classList.add('hidden'); return; }
     area.classList.remove('hidden');
+    area.classList.toggle('readonly', readOnly);
     if (!keepHint) { hintList = null; hintPos = -1; }
 
     const me = state.mySeat;
@@ -534,7 +559,7 @@ function initRoom(roomId) {
       handAllowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
     }
 
-    const cols = arrangeHand(hand, g.level, groups);
+    const cols = arrangeHand(hand, g.level, readOnly ? [] : groups);
     handEl.innerHTML = '';
     for (const col of cols) {
       const colEl = document.createElement('div');
@@ -556,7 +581,14 @@ function initRoom(roomId) {
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = handEl.clientWidth;
     const landscape = window.innerWidth > window.innerHeight;
-    const maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
+    let maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
+    if (state.mySeat == null && window.innerWidth >= 900 && window.innerHeight >= 600) {
+      // 宽屏观战：座位旁还有三家小手牌，按牌桌实际占用后剩下的高度来定
+      const h = (sel) => document.querySelector(sel)?.offsetHeight || 0;
+      const tableH = h('.seat.top') + Math.max(h('.seat.left'), h('.seat.right'), h('.center')) + h('.seat.bottom') + 40;
+      const free = window.innerHeight - h('.topbar') - tableH - h('#spectators') - 40;
+      maxH = Math.max(110, Math.min(maxH, free));
+    }
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
     let w = Math.min(78, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
     w = Math.max(w, 34);
@@ -573,7 +605,7 @@ function initRoom(roomId) {
   function updateControls() {
     const g = state.game;
     const hand = g.myHand;
-    if (!hand) return;
+    if (!hand || state.mySeat == null) return;
     const me = state.mySeat;
     const myAction = (g.pending || []).includes(me) && !state.paused;
     const tributeMode = g.phase === 'tribute' || g.phase === 'return';
