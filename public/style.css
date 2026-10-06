@@ -203,6 +203,12 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 }
 .hand-cols .col.straightFlush::before { background: #ab47bc; }
 .hand-cols .col.custom::before { background: #42a5f5; }
+.hand-cols .col.straight::before, .hand-cols .col.plate::before, .hand-cols .col.pairs::before,
+.hand-cols .col.triplePair::before {
+  content: ""; position: absolute; left: -1px; right: -1px; top: -4px; height: 3px; border-radius: 2px; background: #3fcf8e;
+}
+/* 按组合理牌时，组与组之间留出间隔 */
+.hand-cols.combo { gap: 7px; }
 .hand-cols .card {
   width: var(--hw); height: calc(var(--hw) * 1.4); padding: 2px 3px;
   font-size: calc(var(--hw) * 0.4); border-radius: calc(var(--hw) * 0.09); line-height: 1;

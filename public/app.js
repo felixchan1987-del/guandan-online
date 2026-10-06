@@ -141,6 +141,7 @@ function initRoom(roomId) {
   let hintPos = -1;
   let unread = 0;
   let groups = []; // 手动理牌的牌组（id 数组）
+  let arrangeMode = store.get('gd_arrange') === 'combo' ? 'combo' : 'rank'; // 按点数 | 一键理牌（按组合）
   let handAllowed = null; // 进贡/还贡时可选的牌
   let sfPos = -1;
 
@@ -401,7 +402,14 @@ function initRoom(roomId) {
     selected.clear();
     renderHand(true);
   };
-  $('#arrangeBtn').onclick = () => { groups = []; selected.clear(); renderHand(true); };
+  // 一键理牌：在「按组合（手数最少）」和「按点数」之间切换
+  $('#arrangeBtn').onclick = () => {
+    arrangeMode = arrangeMode === 'combo' ? 'rank' : 'combo';
+    store.set('gd_arrange', arrangeMode);
+    groups = [];
+    selected.clear();
+    renderHand(true);
+  };
   $('#sfBtn').onclick = () => {
     const g = state.game;
     const last = g.turn === state.mySeat ? g.lastPlay?.combo : null;
@@ -734,7 +742,9 @@ function initRoom(roomId) {
       handAllowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
     }
 
-    const cols = arrangeHand(hand, g.level, groups);
+    const cols = arrangeHand(hand, g.level, groups, arrangeMode);
+    $('#arrangeBtn').textContent = arrangeMode === 'combo' ? '按点数排' : '一键理牌';
+    $('#arrangeBtn').title = arrangeMode === 'combo' ? '恢复按点数排列' : '自动拆成顺子、钢板、三带二等组合，出牌手数最少';
     handEl.innerHTML = '';
     for (const col of cols) {
       const colEl = document.createElement('div');
@@ -747,6 +757,7 @@ function initRoom(roomId) {
       handEl.appendChild(colEl);
     }
     const landscape = window.innerWidth > window.innerHeight;
+    handEl.classList.toggle('combo', arrangeMode === 'combo');
     sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36));
     updateSelection();
   }
@@ -757,9 +768,10 @@ function initRoom(roomId) {
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = el.clientWidth;
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
-    let w = Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
+    const gap = el.classList.contains('combo') ? 7 : 3;
+    let w = Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n);
     w = Math.max(w, 30);
-    const overlap = Math.max(0, (n * w + 3 * (n - 1) - avail) / Math.max(1, n - 1));
+    const overlap = Math.max(0, (n * w + gap * (n - 1) - avail) / Math.max(1, n - 1));
     el.style.setProperty('--hw', `${Math.floor(w)}px`);
     el.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
   }

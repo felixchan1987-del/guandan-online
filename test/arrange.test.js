@@ -41,3 +41,29 @@ test('手动理牌的牌组排在最左，打出后自动消失', () => {
   assert.equal(cols.length, 3); // custom、9、3
   assert.equal(cols.flatMap((x) => x.cards).length, 4);
 });
+
+test('一键理牌：拆成出牌手数最少的组合', () => {
+  // 3-4-5-6-7 顺子 + 9 对 + KKK 带 9 对 → 顺子、三带二 共 2 组
+  const hand = cs('S3 D4 C5 S6 H7 S9 D9 SK DK CK');
+  const cols = arrangeHand(hand, 2, [], 'combo');
+  assert.deepEqual(kinds(cols).sort(), ['straight', 'triplePair']);
+  // 钢板与三连对
+  const c2 = arrangeHand(cs('S8 D8 C8 S9 D9 C9 SJ DJ SQ DQ SK DK'), 2, [], 'combo');
+  assert.deepEqual(kinds(c2).sort(), ['pairs', 'plate']);
+  // 按点数模式不受影响
+  assert.ok(arrangeHand(hand, 2).every((x) => x.kind === 'rank'));
+});
+
+test('一键理牌：炸弹不拆、每张牌只出现一次且每组都是合法牌型', async () => {
+  const { createDeck, shuffle, analyze } = await import('../shared/rules.js');
+  let seed = 7;
+  const random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  for (let i = 0; i < 100; i++) {
+    const hand = shuffle(createDeck(), random).slice(0, 27);
+    const cols = arrangeHand(hand, 2, [], 'combo');
+    const ids = cols.flatMap((x) => x.cards.map((c) => c.id));
+    assert.equal(ids.length, 27);
+    assert.equal(new Set(ids).size, 27);
+    for (const col of cols) if (col.kind !== 'wild') assert.ok(analyze(col.cards, 2).length, col.kind);
+  }
+});
