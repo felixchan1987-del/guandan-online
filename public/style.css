@@ -698,3 +698,24 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 
 .seat.bottom:has(.actions.inline.show) .trick, .seat.bottom:has(.actions.inline.auto) .trick { display: none; }
 .actions.inline .act-row { gap: 6px; }
+
+/* 上帝视角 · 玩家视角：手牌只读，隐藏操作类工具，只保留排列切换 */
+.god-bar { display: none; }
+#handArea.readonly .god-bar {
+  display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--muted);
+  margin-top: 4px;
+}
+#handArea.readonly .god-bar b { color: var(--accent); }
+#handArea.readonly .tools button:not(#arrangeBtn) { display: none; }
+#handArea.readonly #hand .card { cursor: default; }
+#handArea.readonly { touch-action: pan-y; }
+#handArea.readonly .god-bar span:not(.eye) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#handArea.readonly .god-bar button { padding: 2px 10px; flex: none; }
+@media (orientation: landscape) and (max-height: 520px) {
+  #handArea.readonly { grid-template-areas: "bar hand" "tools hand"; grid-template-rows: auto 1fr; }
+  #handArea.readonly .god-bar { grid-area: bar; margin: 0; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 130px; }
+  #handArea.readonly .god-bar span:not(.eye) { white-space: normal; }
+  #handArea.readonly .tools { align-self: start; }
+}
+.god-fab.on { background: var(--accent); color: #3a2a00; }
+.god-fab.on .eye { color: #3a2a00; }

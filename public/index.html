@@ -80,6 +80,7 @@
         <button id="cancelAutoBtn" class="big-btn auto-on-btn">🤖 托管中 · 点此取消</button>
       </div>
       <div id="hand" class="hand-cols"></div>
+      <div class="god-bar"><span class="eye">👁</span><span id="godBarText"></span><button id="godBarBtn" class="small">切换 ▾</button></div>
       <div class="tools">
         <button id="groupBtn" class="small" title="把选中的牌理成一列，放到最左边">理牌</button>
         <button id="arrangeBtn" class="small">一键理牌</button>
@@ -128,8 +129,8 @@
     <div class="sheet">
       <div class="sheet-head"><span class="eye big"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span><b class="title">上帝视角</b></div>
       <p class="muted">可以查看所有玩家的手牌，或单独查看某个玩家的手牌。</p>
-      <button class="menu-item" data-god="all"><span class="mi-icon">👥</span><span class="mi-text"><b>查看所有玩家手牌</b><small>显示每个玩家的手牌（仅自己可见）</small></span><span class="chev">›</span></button>
-      <button class="menu-item" data-god="one"><span class="mi-icon">👤</span><span class="mi-text"><b>查看指定玩家手牌</b><small>选择玩家单独查看其手牌</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-god="player"><span class="mi-icon">👤</span><span class="mi-text"><b>以玩家视角观看</b><small>和该玩家看到的画面一样（只看不能操作），点头像或左右滑动手牌换人</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-god="all"><span class="mi-icon">👥</span><span class="mi-text"><b>四家手牌一览</b><small>同时显示每个玩家的手牌</small></span><span class="chev">›</span></button>
       <button class="menu-item plain" data-god="off"><span class="mi-icon x">✕</span><span class="mi-text"><b>关闭上帝视角</b></span></button>
       <button class="cancel">取消</button>
     </div>
@@ -144,19 +145,6 @@
       <div class="gp-mid"><b id="gpMidType">—</b><small id="gpMidSub">当前出牌</small></div>
       <div class="gp-box" data-pos="1"></div>
       <div class="gp-box" data-pos="0"></div>
-    </div>
-    <div id="gpOne" class="gp-one hidden">
-      <div class="gp-card" id="gpCard">
-        <div class="gp-card-head" id="gpCardHead"></div>
-        <div class="gp-card-body">
-          <button class="nav prev" id="gpPrev">‹</button>
-          <div id="gpHand" class="hand-cols"></div>
-          <button class="nav next" id="gpNext">›</button>
-        </div>
-        <div class="dots" id="gpDots"></div>
-      </div>
-      <div class="gp-pick" id="gpPick"></div>
-      <button id="gpBack" class="wide">返回全部玩家</button>
     </div>
     <div class="gp-foot">上帝视角仅观战者可见，玩家看不到其他人的手牌</div>
   </div>

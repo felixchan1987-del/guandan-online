@@ -244,9 +244,8 @@ function initRoom(roomId) {
     const dataUrl = store.get('gd_avatar');
     if (dataUrl) socket.emit('avatar', { dataUrl }, (r) => { if (r && !r.ok) toast(r.error); });
   };
-  // 上帝视角：null 关闭 | 'all' 所有玩家 | 'one' 指定玩家
+  // 上帝视角：null 关闭 | 'player' 以某位玩家的视角观看（和玩家画面一样，只读）| 'all' 四家一览
   let godMode = null;
-  let godSeat = 0;
   socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: !!godMode }, sendAvatar));
   // 观战视角：看哪一家（该家显示在下方）
   let viewSeat = Number(store.get('gd_view')) || 0;
@@ -267,34 +266,32 @@ function initRoom(roomId) {
   const setGod = (mode, seat) => {
     const wasOn = !!godMode;
     godMode = mode;
-    if (seat != null) godSeat = seat;
     if (!!mode !== wasOn) socket.emit('godView', { on: !!mode });
     hide('#godMenu');
-    if (mode) { show('#godPanel'); renderGod(); } else hide('#godPanel');
+    if (seat != null) { viewSeat = seat; store.set('gd_view', String(seat)); }
+    if (mode === 'all') { show('#godPanel'); renderGod(); } else hide('#godPanel');
     if (!mode && wasOn) show('#godExit');
+    if (state) render();
   };
   $('#godFab').onclick = () => show('#godMenu');
+  $('#godBarBtn').onclick = (e) => { e.stopPropagation(); show('#godMenu'); };
   document.querySelectorAll('#godMenu [data-god]').forEach((b) => {
     b.onclick = () => {
       const m = b.dataset.god;
       if (m === 'off') { if (godMode) setGod(null); else hide('#godMenu'); return; }
-      setGod(m, m === 'one' ? viewSeat : null);
+      setGod(m);
     };
   });
   $('#gpClose').onclick = () => setGod(null);
-  $('#gpBack').onclick = () => setGod('all');
   $('#godExitOk').onclick = () => hide('#godExit');
-  const stepGod = (d) => { godSeat = (godSeat + d + 4) % 4; renderGod(); };
-  $('#gpPrev').onclick = () => stepGod(-1);
-  $('#gpNext').onclick = () => stepGod(1);
-  // 左右滑动切换玩家
+  // 以玩家视角观看时：左右滑动手牌切换玩家
   let swipeX = null;
-  $('#gpCard').addEventListener('pointerdown', (e) => { swipeX = e.clientX; });
-  $('#gpCard').addEventListener('pointerup', (e) => {
+  $('#handArea').addEventListener('pointerdown', (e) => { if (state?.mySeat == null) swipeX = e.clientX; });
+  $('#handArea').addEventListener('pointerup', (e) => {
     if (swipeX == null) return;
     const dx = e.clientX - swipeX;
     swipeX = null;
-    if (Math.abs(dx) > 40) stepGod(dx < 0 ? 1 : -1);
+    if (Math.abs(dx) > 40) setView((viewSeat + (dx < 0 ? 1 : 3)) % 4);
   });
 
   // —— 更多菜单 ——
@@ -527,11 +524,12 @@ function initRoom(roomId) {
     if (!show) return;
     // 玩家：外面还剩几张（总数 - 已出 - 自己手里）；观战：还没出的张数
     const mine = {};
-    for (const c of g.myHand || []) mine[c.rank] = (mine[c.rank] || 0) + 1;
+    const viewHand = state.mySeat == null ? (godMode === 'player' ? g.allHands?.[viewSeat] : null) : g.myHand;
+    for (const c of viewHand || []) mine[c.rank] = (mine[c.rank] || 0) + 1;
     const order = [17, 16, g.level, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]
       .filter((r, i, a) => a.indexOf(r) === i);
     const label = { 17: '大', 16: '小' };
-    el.innerHTML = `<span class="ct-title">${state.mySeat == null ? '未出' : '外面'}</span>` + order.map((r) => {
+    el.innerHTML = `<span class="ct-title">${viewHand ? '外面' : '未出'}</span>` + order.map((r) => {
       const total = r >= 16 ? 2 : 8;
       const left = total - (g.playedCounts[r] || 0) - (mine[r] || 0);
       const cls = [r >= 16 ? 'joker' : '', r === g.level ? 'level' : '', left === 0 ? 'zero' : ''].join(' ');
@@ -808,6 +806,9 @@ function initRoom(roomId) {
     // 顶栏与比分牌
     $('#roleChip').classList.toggle('hidden', mySeat != null);
     $('#godFab').classList.toggle('hidden', mySeat != null || g.phase === 'waiting');
+    $('#godFab').classList.toggle('on', !!godMode);
+    // 玩家视角下手牌占据底部，悬浮按钮改由手牌下方的「切换」打开，避免挡住手牌
+    if (godMode === 'player' && g.allHands) $('#godFab').classList.add('hidden');
     // 入座后上帝视角自动失效（服务器也不再发送手牌）
     if (godMode && mySeat != null) { godMode = null; hide('#godPanel'); }
     for (const t of [0, 1]) {
@@ -989,7 +990,7 @@ function initRoom(roomId) {
     animSeats = new Set();
     renderHand();
     renderCounter();
-    if (godMode) renderGod();
+    if (godMode === 'all') renderGod();
     updateTimers();
   }
 
@@ -998,9 +999,7 @@ function initRoom(roomId) {
     const { seats, game: g } = state;
     const hands = g.allHands;
     const playing = ['tribute', 'return', 'playing'].includes(g.phase);
-    $('#gpMode').textContent = godMode === 'all' ? '所有玩家' : '查看玩家';
-    $('#gpAll').classList.toggle('hidden', godMode !== 'all');
-    $('#gpOne').classList.toggle('hidden', godMode !== 'one');
+    $('#gpMode').textContent = '四家手牌一览';
     const who = (seat, cls = '') => {
       const s = seats[seat];
       return avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2, cls });
@@ -1020,51 +1019,28 @@ function initRoom(roomId) {
           `<div class="gp-who">${who(seat)}<b>${nameHtml(seat)}</b><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span></div>`;
         box.appendChild(cardsEl(handOf(seat), g.level, 'mini'));
         box.insertAdjacentHTML('beforeend', `<div class="left-n">${leftText(seat)}</div>`);
-        box.onclick = () => setGod('one', seat);
+        box.onclick = () => setGod('player', seat); // 点某一家：切到他的玩家视角
       }
       const lp = g.lastPlay;
       $('#gpMidType').textContent = lp ? TYPE_NAMES[lp.combo.type] : (playing ? '首出' : '—');
       $('#gpMidSub').textContent = lp ? `${seatName(lp.seat)} 出牌` : (playing ? `轮到 ${seatName(g.turn ?? 0)}` : '当前出牌');
-      return;
-    }
-
-    // 单人视角
-    const seat = godSeat;
-    const s = seats[seat];
-    $('#gpCardHead').innerHTML = who(seat) +
-      `<div class="info"><b>${nameHtml(seat)}</b><div class="row"><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span>` +
-      `<span>${leftText(seat)}</span>${s?.bot ? '<span class="tag bot">机器人</span>' : ''}</div></div>`;
-    const hand = handOf(seat);
-    const gpHand = $('#gpHand');
-    gpHand.innerHTML = '';
-    const cols = arrangeHand(hand, g.level);
-    for (const col of cols) {
-      const colEl = document.createElement('div');
-      colEl.className = `col ${col.kind}`;
-      for (const c of col.cards) colEl.appendChild(cardEl(c, g.level, true));
-      gpHand.appendChild(colEl);
-    }
-    if (!hand.length) gpHand.innerHTML = '<p class="muted">没有手牌</p>';
-    sizeCols(gpHand, cols, window.innerHeight * 0.38, 60);
-    $('#gpDots').innerHTML = [0, 1, 2, 3].map((i) => `<span class="${i === seat ? 'on' : ''}"></span>`).join('');
-    const pick = $('#gpPick');
-    pick.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
-      const b = document.createElement('button');
-      b.className = i === seat ? 'on' : '';
-      b.innerHTML = `${who(i)}<span class="nm">${nameHtml(i)}</span><span class="team-badge t${i % 2}">${TEAM_NAMES[i % 2]}</span>`;
-      b.onclick = () => { godSeat = i; renderGod(); };
-      pick.appendChild(b);
     }
   }
 
   function renderHand(keepHint) {
     const g = state.game;
     const area = $('#handArea');
-    const hand = g.myHand;
+    // 观战 + 上帝视角（玩家视角）：显示当前视角那一家的手牌，只读
+    const readOnly = state.mySeat == null;
+    const hand = readOnly ? (godMode === 'player' ? g.allHands?.[viewSeat] : null) : g.myHand;
     const inGame = ['tribute', 'return', 'playing'].includes(g.phase);
     if (!hand || !inGame) { area.classList.add('hidden'); return; }
     area.classList.remove('hidden');
+    area.classList.toggle('readonly', readOnly);
+    if (readOnly) {
+      $('#godBarText').innerHTML = `正在看 <b>${nameHtml(viewSeat)}</b> 的手牌`;
+      $('#handArea .god-bar').title = '点座位头像或左右滑动手牌可以换人';
+    }
     if (!keepHint) { hintList = null; hintPos = -1; }
 
     const me = state.mySeat;
@@ -1075,7 +1051,7 @@ function initRoom(roomId) {
       handAllowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
     }
 
-    const cols = arrangeHand(hand, g.level, groups, arrangeMode);
+    const cols = arrangeHand(hand, g.level, readOnly ? [] : groups, arrangeMode);
     $('#arrangeBtn').textContent = arrangeMode === 'combo' ? '按点数排' : '一键理牌';
     $('#arrangeBtn').title = arrangeMode === 'combo' ? '恢复按点数排列' : '自动拆成顺子、钢板、三带二等组合，出牌手数最少';
     handEl.innerHTML = '';
