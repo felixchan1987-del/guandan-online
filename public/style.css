@@ -220,3 +220,27 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   #hand { grid-area: hand; padding-top: 6px; }
   #spectators { display: none; }
 }
+
+/* 存档 / 读档面板 */
+.modal {
+  position: fixed; inset: 0; z-index: 8; background: rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-box {
+  background: #12301f; border-radius: 12px; padding: 14px 16px; width: 100%; max-width: 460px;
+  max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; }
+.modal-box p { margin: 0; }
+.modal-box .muted { color: var(--muted); font-size: 12px; }
+.modal-box textarea { width: 100%; min-height: 70px; font: 11px/1.3 monospace; border-radius: 6px; padding: 6px; resize: vertical; }
+#saveResult, #loadArea { display: flex; flex-direction: column; gap: 8px; }
+#saveResult.hidden, #loadArea.hidden { display: none; }
+.save-item { background: var(--panel); border-radius: 8px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+.save-item .info { flex: 1; font-size: 12px; min-width: 0; }
+.save-item .info b { font-size: 13px; }
+.file-btn {
+  display: inline-block; text-align: center; background: #e8efe9; color: #1b3326; border-radius: 6px;
+  padding: 8px 16px; cursor: pointer;
+}
+.paused-tag { color: var(--accent); font-weight: 700; }

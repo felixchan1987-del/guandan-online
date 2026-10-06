@@ -29,6 +29,13 @@ function toast(msg) {
   toast.t = setTimeout(() => el.classList.add('hidden'), 1800);
 }
 
+// 本浏览器保存的存档（最多 8 个）
+const localSaves = {
+  list() { try { return JSON.parse(store.get('gd_saves') || '[]'); } catch { return []; } },
+  add(entry) { store.set('gd_saves', JSON.stringify([entry, ...this.list()].slice(0, 8))); },
+  remove(code) { store.set('gd_saves', JSON.stringify(this.list().filter((e) => e.code !== code))); },
+};
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -46,17 +53,19 @@ else initRoom(match[1].toUpperCase());
 function initLobby() {
   $('#lobby').classList.remove('hidden');
   $('#nameInput').value = myName;
-  const go = (code) => {
+  const go = (code, query = '') => {
     const name = $('#nameInput').value.trim();
     if (name) store.set('gd_name', name);
-    location.href = `/r/${code}`;
+    location.href = `/r/${code}${query}`;
   };
-  $('#createBtn').onclick = () => {
+  const newCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
-    go(code);
+    return code;
   };
+  $('#createBtn').onclick = () => go(newCode());
+  $('#lobbyLoadBtn').onclick = () => go(newCode(), '?load=1');
   $('#joinBtn').onclick = () => {
     const code = $('#codeInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code) go(code);
@@ -85,7 +94,13 @@ function initRoom(roomId) {
 
   socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName }));
   socket.on('disconnect', () => toast('连接断开，正在重连…'));
+  let wantLoad = new URLSearchParams(location.search).has('load');
   socket.on('state', (s) => {
+    if (wantLoad) {
+      wantLoad = false;
+      history.replaceState(null, '', location.pathname);
+      setTimeout(openLoadPanel, 0);
+    }
     const prev = state;
     state = s;
     clockOffset = s.serverNow - Date.now();
@@ -130,6 +145,84 @@ function initRoom(roomId) {
   document.querySelectorAll('.quick').forEach((b) => { b.onclick = () => emit('chat', { text: b.textContent }); });
 
   // —— 顶部按钮 ——
+  // —— 存档 / 读档 ——
+  const panel = $('#savePanel');
+  const openPanel = (mode) => {
+    $('#panelTitle').textContent = mode === 'save' ? '已存档' : '读取存档';
+    $('#saveResult').classList.toggle('hidden', mode !== 'save');
+    $('#loadArea').classList.toggle('hidden', mode !== 'load');
+    panel.classList.remove('hidden');
+  };
+  $('#closePanelBtn').onclick = () => panel.classList.add('hidden');
+  panel.onclick = (e) => { if (e.target === panel) panel.classList.add('hidden'); };
+
+  $('#saveBtn').onclick = () => socket.emit('save', null, (r) => {
+    if (!r?.ok) return toast(r?.error || '存档失败');
+    localSaves.add({ code: r.code, meta: r.meta, roomId });
+    const d = new Date(r.meta.savedAt);
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([r.code], { type: 'text/plain' }));
+    a.download = `guandan-save-${stamp}.txt`; // 部分浏览器不支持中文文件名
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('#savedCode').value = r.code;
+    openPanel('save');
+  });
+  $('#copyCodeBtn').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#savedCode').value); toast('存档码已复制'); } catch {
+      $('#savedCode').select(); toast('请手动复制');
+    }
+  };
+  $('#pauseBtn').onclick = () => emit('pause');
+
+  const loadCode = (code) => socket.emit('load', { code }, (r) => {
+    if (!r?.ok) return toast(r?.error || '读取失败');
+    panel.classList.add('hidden');
+    toast('存档已读取：坐满 4 人后点「继续对局」');
+  });
+  function openLoadPanel() {
+    const listEl = $('#localSaves');
+    listEl.innerHTML = '';
+    const saves = localSaves.list();
+    if (!saves.length) listEl.innerHTML = '<p class="muted">本浏览器还没有存档</p>';
+    for (const e of saves) {
+      const m = e.meta;
+      const d = new Date(m.savedAt);
+      const item = document.createElement('div');
+      item.className = 'save-item';
+      item.innerHTML =
+        `<div class="info"><b>${d.toLocaleString('zh-CN', { hour12: false })}</b><br>` +
+        `第 ${m.roundNo} 局 · 蓝队 ${rankLabel(m.teamLevels[0])} · 红队 ${rankLabel(m.teamLevels[1])} · 打${TEAM_NAMES[m.levelTeam]}的级<br>` +
+        `${escapeHtml(m.names.filter(Boolean).join('、'))}</div>`;
+      const load = document.createElement('button');
+      load.className = 'small primary';
+      load.textContent = '读取';
+      load.onclick = () => loadCode(e.code);
+      const del = document.createElement('button');
+      del.className = 'small';
+      del.textContent = '删除';
+      del.onclick = () => { localSaves.remove(e.code); openLoadPanel(); };
+      item.append(load, del);
+      listEl.appendChild(item);
+    }
+    $('#pasteCode').value = '';
+    openPanel('load');
+  }
+  $('#loadCodeBtn').onclick = () => {
+    const code = $('#pasteCode').value.trim();
+    if (!code) return toast('请粘贴存档码');
+    loadCode(code);
+  };
+  $('#saveFile').onchange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) loadCode((await file.text()).trim());
+  };
+
   $('#copyBtn').onclick = async () => {
     try { await navigator.clipboard.writeText(location.href); toast('链接已复制'); } catch { toast(location.href); }
   };
@@ -252,8 +345,13 @@ function initRoom(roomId) {
   function render() {
     const { seats, mySeat, game: g, spectators } = state;
     const viewer = mySeat ?? 0;
-    const inGame = ['tribute', 'return', 'playing'].includes(g.phase);
+    const paused = state.paused;
+    const inGame = ['tribute', 'return', 'playing'].includes(g.phase) && !paused;
     const pending = g.pending || [];
+    const seatsOpen = g.phase === 'waiting' || paused;
+
+    $('#saveBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting');
+    $('#pauseBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting' || g.phase === 'matchOver' || paused);
 
     $('#identity').textContent = mySeat == null ? `${myName}（观战中）` : `${myName}（${mySeat + 1} 号位）`;
     const aInfo = [0, 1].filter((t) => g.aFails?.[t]).map((t) => ` · ${TEAM_NAMES[t]}打A失败${g.aFails[t]}次`).join('');
@@ -282,7 +380,7 @@ function initRoom(roomId) {
       plate.innerHTML =
         `<div class="name">${s?.bot ? '🤖' : ''}${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
         `<div class="meta">${tags.join(' ')}</div>`;
-      if (g.phase === 'waiting') {
+      if (seatsOpen) {
         const seatBtn = (text, fn, cls = 'small') => {
           const b = document.createElement('button');
           b.className = cls;
@@ -326,7 +424,23 @@ function initRoom(roomId) {
       actions.appendChild(b);
     };
 
-    if (g.phase === 'waiting') {
+    if (paused) {
+      const n = seats.filter(Boolean).length;
+      let html = '<span class="paused-tag">⏸ 对局已暂停</span>';
+      const lf = state.loadedFrom;
+      if (lf) {
+        html += `<br><small>读取的存档：${new Date(lf.savedAt).toLocaleString('zh-CN', { hour12: false })}` +
+          `，原玩家 ${escapeHtml(lf.names.filter(Boolean).join('、'))}</small>`;
+      }
+      html += `<br><small>可以换人：空位坐下或加机器人（${n}/4）</small>`;
+      status.innerHTML = html;
+      if (mySeat != null) {
+        if (n === 4) btn('继续对局', () => emit('resume'), true);
+        else btn('空位补机器人', () => emit('addBot', {}), true);
+        btn('离座观战', () => emit('stand'));
+      }
+      btn('读取存档', openLoadPanel);
+    } else if (g.phase === 'waiting') {
       const n = seats.filter(Boolean).length;
       status.textContent = n < 4 ? `等待玩家入座（${n}/4）· 把链接发给朋友，或用机器人补位` : '人已到齐';
       if (mySeat != null) {
@@ -334,6 +448,7 @@ function initRoom(roomId) {
         else btn('空位补机器人', () => emit('addBot', {}), true);
         btn('离座观战', () => emit('stand'));
       }
+      btn('读取存档', openLoadPanel);
     } else if (g.phase === 'tribute') {
       const names = pending.map(nameHtml).join('、');
       status.innerHTML = pending.includes(mySeat)
@@ -397,7 +512,7 @@ function initRoom(roomId) {
     if (!keepHint) { hintList = null; hintPos = -1; }
 
     const me = state.mySeat;
-    const myAction = (g.pending || []).includes(me);
+    const myAction = (g.pending || []).includes(me) && !state.paused;
     const tributeMode = g.phase === 'tribute' || g.phase === 'return';
     handAllowed = null;
     if (tributeMode && myAction) {
@@ -445,7 +560,7 @@ function initRoom(roomId) {
     const hand = g.myHand;
     if (!hand) return;
     const me = state.mySeat;
-    const myAction = (g.pending || []).includes(me);
+    const myAction = (g.pending || []).includes(me) && !state.paused;
     const tributeMode = g.phase === 'tribute' || g.phase === 'return';
 
     // 多种牌型解释时让玩家选择（例如带逢人配）

@@ -14,6 +14,8 @@ export class Room {
     this.members = new Map(); // socketId -> { playerId, name }
     this.game = new Game();
     this.chat = [];
+    this.paused = false; // 暂停时可换人/加机器人，计时停止
+    this.loadedFrom = null; // 读档信息 { savedAt, names }
     this.onChange = onChange;
     this.timer = null;
     this.deadline = null;
@@ -22,7 +24,10 @@ export class Room {
   }
 
   toJSON() {
-    return { id: this.id, seats: this.seats, game: this.game, chat: this.chat };
+    return {
+      id: this.id, seats: this.seats, game: this.game, chat: this.chat,
+      paused: this.paused, loadedFrom: this.loadedFrom,
+    };
   }
 
   static fromJSON(data, onChange) {
@@ -30,6 +35,8 @@ export class Room {
     room.seats = data.seats;
     room.game = Game.fromJSON(data.game);
     room.chat = data.chat || [];
+    room.paused = !!data.paused;
+    room.loadedFrom = data.loadedFrom || null;
     return room;
   }
 
@@ -45,6 +52,18 @@ export class Room {
     const used = new Set(this.seats.filter((s) => s?.bot).map((s) => s.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) || '机器人';
     this.seats[seat] = { playerId: `bot-${seat}-${Date.now()}`, name, bot: true };
+  }
+
+  /** 开局前或暂停中可以换座、加减机器人 */
+  get seatsOpen() {
+    return this.game.phase === 'waiting' || this.paused;
+  }
+
+  /** 继续对局：真人座位取消托管（可能已换了人），重新计时 */
+  resume() {
+    this.paused = false;
+    this.stepKey = null;
+    this.seats.forEach((s, i) => { if (s && !s.bot) this.game.setAuto(i, false); });
   }
 
   /** 机器人座位始终托管 */
@@ -64,7 +83,7 @@ export class Room {
     clearTimeout(this.timer);
     this.timer = null;
     const g = this.game;
-    const pending = g.pendingSeats();
+    const pending = this.paused ? [] : g.pendingSeats();
     if (!pending.length) {
       this.deadline = null;
       this.stepKey = null;

@@ -14,6 +14,7 @@
       <p class="sub">4 人对战 · 不限人数观战</p>
       <label>昵称 <input id="nameInput" maxlength="12" placeholder="输入昵称"></label>
       <button id="createBtn" class="primary">创建房间</button>
+      <button id="lobbyLoadBtn">读取存档继续</button>
       <div class="join-row">
         <input id="codeInput" maxlength="8" placeholder="房间号">
         <button id="joinBtn">加入</button>
@@ -26,7 +27,7 @@
     <header class="topbar">
       <div>房间 <b id="roomCode"></b> <button id="copyBtn" class="small">复制链接</button></div>
       <div id="levelInfo"></div>
-      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="chatBtn" class="small">聊天</button></div>
+      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="pauseBtn" class="small hidden">暂停</button> <button id="saveBtn" class="small hidden">存档</button> <button id="chatBtn" class="small">聊天</button></div>
     </header>
 
     <main class="table">
@@ -74,6 +75,24 @@
       <input id="chatInput" maxlength="100" placeholder="说点什么…" autocomplete="off">
       <button class="primary">发送</button>
     </form>
+  </div>
+
+  <div id="savePanel" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><b id="panelTitle"></b><button id="closePanelBtn" class="small">关闭</button></div>
+      <div id="saveResult" class="hidden">
+        <p>已存档，对局已暂停。存档文件已下载，本浏览器也保留了一份。</p>
+        <p class="muted">换设备或发给别人时，复制下面的存档码即可。下次在任意房间「读取存档」，坐满后点「继续对局」。</p>
+        <textarea id="savedCode" readonly></textarea>
+        <button id="copyCodeBtn" class="primary">复制存档码</button>
+      </div>
+      <div id="loadArea" class="hidden">
+        <div id="localSaves"></div>
+        <label class="file-btn">从文件读取<input type="file" id="saveFile" hidden></label>
+        <textarea id="pasteCode" placeholder="或粘贴存档码（GD1. 开头）"></textarea>
+        <button id="loadCodeBtn" class="primary">读取存档码</button>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="hidden"></div>

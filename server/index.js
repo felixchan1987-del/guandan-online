@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Game } from './game.js';
 import { Room, TURN_MS } from './room.js';
+import { encodeSave, decodeSave } from './save.js';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = process.env.PORT || 3000;
@@ -55,6 +56,8 @@ function broadcast(room) {
       seats,
       spectators,
       mySeat: seat < 0 ? null : seat,
+      paused: room.paused,
+      loadedFrom: room.loadedFrom,
       deadline: room.deadline,
       turnMs: TURN_MS,
       serverNow: Date.now(),
@@ -123,6 +126,9 @@ io.on('connection', (socket) => {
     reply(cb, r);
     if (r.ok) changed(room);
   };
+  /** 对局内操作：暂停时不允许 */
+  const playAct = (cb, fn) => act(cb, (seat, g) =>
+    (room.paused ? { ok: false, error: '对局已暂停，点「继续」后再操作' } : fn(seat, g)));
 
   socket.on('join', ({ roomId, playerId, name } = {}, cb) => {
     roomId = String(roomId || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -141,7 +147,7 @@ io.on('connection', (socket) => {
 
   socket.on('sit', ({ seat } = {}, cb) => {
     if (!room) return;
-    if (room.game.phase !== 'waiting') return reply(cb, { ok: false, error: '对局进行中，不能换座' });
+    if (!room.seatsOpen) return reply(cb, { ok: false, error: '对局进行中，请先暂停再换座' });
     if (!(seat >= 0 && seat < 4) || room.seats[seat]) return reply(cb, { ok: false, error: '该座位已有人' });
     const cur = mySeat();
     if (cur >= 0) room.seats[cur] = null;
@@ -152,16 +158,16 @@ io.on('connection', (socket) => {
 
   socket.on('stand', (_, cb) => {
     if (!room) return;
-    if (room.game.phase !== 'waiting') return reply(cb, { ok: false, error: '对局进行中，不能离座' });
+    if (!room.seatsOpen) return reply(cb, { ok: false, error: '对局进行中，请先暂停再离座' });
     const cur = mySeat();
     if (cur >= 0) room.seats[cur] = null;
     reply(cb, { ok: true });
     changed(room);
   });
 
-  // 机器人：仅限已入座玩家、对局开始前
-  socket.on('addBot', ({ seat } = {}, cb) => act(cb, (_seat, g) => {
-    if (g.phase !== 'waiting') return { ok: false, error: '对局进行中，不能加机器人' };
+  // 机器人：仅限已入座玩家，开局前或暂停中
+  socket.on('addBot', ({ seat } = {}, cb) => act(cb, () => {
+    if (!room.seatsOpen) return { ok: false, error: '对局进行中，请先暂停再加机器人' };
     const targets = seat == null ? [0, 1, 2, 3].filter((i) => !room.seats[i]) : [seat];
     if (!targets.length || targets.some((i) => !(i >= 0 && i < 4) || room.seats[i])) {
       return { ok: false, error: '没有空位' };
@@ -170,8 +176,8 @@ io.on('connection', (socket) => {
     return { ok: true };
   }));
 
-  socket.on('removeBot', ({ seat } = {}, cb) => act(cb, (_seat, g) => {
-    if (g.phase !== 'waiting') return { ok: false, error: '对局进行中，不能移除机器人' };
+  socket.on('removeBot', ({ seat } = {}, cb) => act(cb, () => {
+    if (!room.seatsOpen) return { ok: false, error: '对局进行中，请先暂停再移除机器人' };
     if (!room.seats[seat]?.bot) return { ok: false, error: '该座位不是机器人' };
     room.seats[seat] = null;
     return { ok: true };
@@ -181,24 +187,25 @@ io.on('connection', (socket) => {
     if (g.phase !== 'waiting') return { ok: false, error: '对局已开始' };
     if (room.seats.some((s) => !s)) return { ok: false, error: '需要坐满 4 人' };
     g.startRound();
+    room.loadedFrom = null;
     return { ok: true };
   }));
 
-  socket.on('play', ({ cardIds, optionIndex } = {}, cb) => act(cb, (seat, g) =>
+  socket.on('play', ({ cardIds, optionIndex } = {}, cb) => playAct(cb, (seat, g) =>
     g.play(seat, Array.isArray(cardIds) ? cardIds.map(String) : [], optionIndex)));
 
-  socket.on('pass', (_, cb) => act(cb, (seat, g) => g.pass(seat)));
+  socket.on('pass', (_, cb) => playAct(cb, (seat, g) => g.pass(seat)));
 
-  socket.on('tribute', ({ cardId } = {}, cb) => act(cb, (seat, g) =>
+  socket.on('tribute', ({ cardId } = {}, cb) => playAct(cb, (seat, g) =>
     (g.phase === 'return' ? g.returnTribute(seat, String(cardId)) : g.payTribute(seat, String(cardId)))));
 
-  socket.on('auto', ({ on } = {}, cb) => act(cb, (seat, g) => {
+  socket.on('auto', ({ on } = {}, cb) => playAct(cb, (seat, g) => {
     if (!['tribute', 'return', 'playing'].includes(g.phase)) return { ok: false, error: '对局未进行' };
     g.setAuto(seat, on);
     return { ok: true };
   }));
 
-  socket.on('nextRound', (_, cb) => act(cb, (_seat, g) => {
+  socket.on('nextRound', (_, cb) => playAct(cb, (_seat, g) => {
     if (g.phase === 'matchOver') {
       // 整场结束：重开一场，座位保留
       room.game = new Game();
@@ -207,6 +214,47 @@ io.on('connection', (socket) => {
     }
     return g.nextRound() ? { ok: true } : { ok: false, error: '当前不能开始下一局' };
   }));
+
+  // —— 存档 / 读档 / 暂停 ——
+  socket.on('save', (_, cb) => act(cb, (_seat, g) => {
+    if (g.phase === 'waiting') return { ok: false, error: '对局还没开始' };
+    room.paused = true;
+    const savedAt = Date.now();
+    const names = room.seats.map((s) => s?.name || '');
+    return {
+      ok: true,
+      code: encodeSave({ savedAt, names, game: g }),
+      meta: { savedAt, names, teamLevels: g.teamLevels, levelTeam: g.levelTeam, roundNo: g.roundNo },
+    };
+  }));
+
+  socket.on('pause', (_, cb) => act(cb, (_seat, g) => {
+    if (!['tribute', 'return', 'playing', 'roundOver'].includes(g.phase)) return { ok: false, error: '当前不能暂停' };
+    room.paused = true;
+    return { ok: true };
+  }));
+
+  socket.on('resume', (_, cb) => act(cb, () => {
+    if (!room.paused) return { ok: false, error: '对局没有暂停' };
+    if (room.seats.some((s) => !s)) return { ok: false, error: '需要坐满 4 人（可用机器人补位）' };
+    room.resume();
+    room.loadedFrom = null;
+    return { ok: true };
+  }));
+
+  // 读档：开局前或暂停中，房间里任何人都可以读
+  socket.on('load', ({ code } = {}, cb) => {
+    if (!room) return;
+    if (!room.seatsOpen) return reply(cb, { ok: false, error: '对局进行中，请先暂停' });
+    const data = decodeSave(code);
+    if (!data) return reply(cb, { ok: false, error: '存档无效（可能已损坏，或服务器密钥变了）' });
+    room.game = Game.fromJSON(data.game);
+    room.game.auto = [false, false, false, false];
+    room.paused = true;
+    room.loadedFrom = { savedAt: data.savedAt, names: data.names };
+    reply(cb, { ok: true });
+    changed(room);
+  });
 
   socket.on('chat', ({ text } = {}, cb) => {
     if (!room) return;
@@ -226,10 +274,10 @@ io.on('connection', (socket) => {
     const r = room;
     const pid = me.playerId;
     r.members.delete(socket.id);
-    // 对局未开始时，掉线超过 60 秒自动离座（刷新页面不受影响）；对局中保留座位，超时会自动托管
+    // 开局前或暂停中，掉线超过 60 秒自动让出座位（刷新页面不受影响）；对局中保留座位，超时会自动托管
     setTimeout(() => {
       const seat = r.seatOf(pid);
-      if (seat >= 0 && !r.isOnline(pid) && r.game.phase === 'waiting') {
+      if (seat >= 0 && !r.isOnline(pid) && r.seatsOpen) {
         r.seats[seat] = null;
         changed(r);
       }

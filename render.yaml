@@ -11,3 +11,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # 存档码加密密钥：自动生成并保持不变，重新部署后旧存档仍可读取
+      - key: SAVE_SECRET
+        generateValue: true
