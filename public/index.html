@@ -12,7 +12,10 @@
     <div class="lobby-card">
       <h1>掼蛋在线</h1>
       <p class="sub">4 人对战 · 不限人数观战</p>
-      <label>昵称 <input id="nameInput" maxlength="12" placeholder="输入昵称"></label>
+      <div class="profile-row">
+        <button id="lobbyAvatarBtn" class="avatar-pick" title="点击上传头像"><span id="lobbyAvatar"></span><span class="pick-tip">上传头像</span></button>
+        <label>昵称 <input id="nameInput" maxlength="12" placeholder="输入昵称"></label>
+      </div>
       <button id="createBtn" class="primary">创建房间</button>
       <button id="lobbyLoadBtn">读取存档继续</button>
       <div class="join-row">
@@ -27,7 +30,7 @@
     <header class="topbar">
       <div>房间 <b id="roomCode"></b> <button id="copyBtn" class="small">复制链接</button></div>
       <div id="levelInfo"></div>
-      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="pauseBtn" class="small hidden">暂停</button> <button id="saveBtn" class="small hidden">存档</button> <span id="viewSel" class="hidden">视角 <button class="small" data-seat="0">1</button><button class="small" data-seat="1">2</button><button class="small" data-seat="2">3</button><button class="small" data-seat="3">4</button></span> <button id="godBtn" class="small hidden">上帝视角</button> <button id="chatBtn" class="small">聊天</button></div>
+      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="avatarBtn" class="small">头像</button> <button id="pauseBtn" class="small hidden">暂停</button> <button id="saveBtn" class="small hidden">存档</button> <span id="viewSel" class="hidden">视角 <button class="small" data-seat="0">1</button><button class="small" data-seat="1">2</button><button class="small" data-seat="2">3</button><button class="small" data-seat="3">4</button></span> <button id="godBtn" class="small hidden">上帝视角</button> <button id="chatBtn" class="small">聊天</button></div>
     </header>
 
     <main class="table">
@@ -95,6 +98,7 @@
     </div>
   </div>
 
+  <input type="file" id="avatarFile" accept="image/*" hidden>
   <div id="toast" class="hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>

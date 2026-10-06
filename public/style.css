@@ -1,9 +1,9 @@
 :root {
-  --felt: #1f6b45;
-  --felt-dark: #154d31;
-  --panel: rgba(0, 0, 0, 0.28);
+  --felt: #4579b8;
+  --felt-dark: #2a5590;
+  --panel: rgba(12, 30, 60, 0.38);
   --text: #f3f6f4;
-  --muted: #b9d3c3;
+  --muted: #c7d8ee;
   --accent: #f5c542;
   --red: #d32f2f;
   --card-w: 46px;
@@ -20,7 +20,7 @@ body {
 .hidden { display: none !important; }
 button {
   font: inherit; border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer;
-  background: #e8efe9; color: #1b3326;
+  background: #eef3fa; color: #1c3150;
 }
 button.primary { background: var(--accent); color: #3a2a00; font-weight: 600; }
 button.small { padding: 2px 8px; font-size: 12px; }
@@ -100,7 +100,7 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 .cards.mini .card { --card-w: 34px; --card-h: 48px; font-size: 12px; }
 .cards.mini .card + .card { margin-left: -16px; }
 
-#handArea { padding: 8px 16px 16px; background: rgba(0, 0, 0, 0.18); }
+#handArea { padding: 8px 16px 16px; background: rgba(10, 28, 58, 0.22); }
 .actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 8px; }
 #options { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 #options button.sel { outline: 2px solid var(--accent); }
@@ -137,7 +137,7 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 /* 聊天 */
 #chatPanel {
   position: fixed; right: 16px; top: 52px; z-index: 5; width: 300px; max-width: calc(100vw - 32px);
-  background: rgba(10, 30, 20, 0.95); border-radius: 10px; padding: 10px;
+  background: rgba(20, 44, 78, 0.97); border-radius: 10px; padding: 10px;
   display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 #chatLog { height: 220px; overflow-y: auto; font-size: 13px; word-break: break-all; }
@@ -209,15 +209,15 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   .result-box ol { margin: 2px 0; }
   #handArea {
     flex: none; padding: 2px 12px 4px;
-    display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: end;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: end;
     grid-template-areas: "opts opts" "act hand" "act tools";
   }
   #options { grid-area: opts; margin-bottom: 0; }
   .actions { grid-area: act; display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 4px; align-self: center; }
-  .actions button { padding: 6px 10px; }
+  .actions button { padding: 6px 10px; white-space: nowrap; }
   .tools button { padding: 2px 8px; }
   .tools { grid-area: tools; margin: 4px 0 0; gap: 6px; }
-  #hand { grid-area: hand; padding-top: 6px; }
+  #hand { grid-area: hand; padding-top: 6px; min-width: 0; }
   #spectators { display: none; }
 }
 
@@ -227,7 +227,7 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .modal-box {
-  background: #12301f; border-radius: 12px; padding: 14px 16px; width: 100%; max-width: 460px;
+  background: #1d3f6b; border-radius: 12px; padding: 14px 16px; width: 100%; max-width: 460px;
   max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
 }
 .modal-head { display: flex; justify-content: space-between; align-items: center; }
@@ -240,26 +240,10 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 .save-item .info { flex: 1; font-size: 12px; min-width: 0; }
 .save-item .info b { font-size: 13px; }
 .file-btn {
-  display: inline-block; text-align: center; background: #e8efe9; color: #1b3326; border-radius: 6px;
+  display: inline-block; text-align: center; background: #eef3fa; color: #1c3150; border-radius: 6px;
   padding: 8px 16px; cursor: pointer;
 }
 .paused-tag { color: var(--accent); font-weight: 700; }
-
-/* 上帝视角：观战者看到的每家手牌 */
-.cards.god-hand { max-width: 300px; row-gap: 2px; padding-left: 12px; justify-content: center; }
-.cards.god-hand .card { --card-w: 26px; --card-h: 36px; font-size: 11px; padding: 1px 2px; margin-left: -12px; }
-.cards.god-hand .card + .card { margin-left: -12px; }
-.seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 200px; }
-@media (max-width: 600px) {
-  .cards.god-hand { max-width: 150px; }
-  .seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 110px; }
-  .cards.god-hand .card { --card-w: 22px; --card-h: 30px; font-size: 10px; }
-}
-@media (orientation: landscape) and (max-height: 520px) {
-  .cards.god-hand { max-width: 260px; }
-  .seat.left .cards.god-hand, .seat.right .cards.god-hand { max-width: 170px; }
-  .cards.god-hand .card { --card-w: 22px; --card-h: 30px; font-size: 10px; }
-}
 
 /* 观战视角切换 */
 #viewSel button { margin-left: 2px; }
@@ -269,3 +253,21 @@ input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9bb;
 .plate.clickable:hover { border-color: rgba(255, 255, 255, 0.35); }
 #handArea.readonly .actions, #handArea.readonly .tools, #handArea.readonly #options { display: none; }
 #handArea.readonly #hand .card { cursor: default; }
+
+/* 头像 */
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none;
+  border: 2px solid rgba(255, 255, 255, 0.7); background: #6b8fc2;
+}
+.avatar.letter { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: #fff; }
+.avatar.team0 { border-color: #6cc4ff; }
+.avatar.team1 { border-color: #ff9a76; }
+.avatar.big { width: 64px; height: 64px; font-size: 28px; }
+.plate { display: flex; align-items: center; gap: 8px; text-align: left; flex-wrap: wrap; justify-content: center; }
+.plate-text { min-width: 0; }
+.team0 .name::before, .team1 .name::before { content: none; }
+.profile-row { display: flex; gap: 12px; align-items: center; }
+.profile-row label { flex: 1; }
+.avatar-pick { background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); font-size: 11px; }
+@media (max-width: 600px) { .plate .avatar { width: 32px; height: 32px; font-size: 15px; } }
+@media (orientation: landscape) and (max-height: 520px) { .plate .avatar { width: 26px; height: 26px; font-size: 13px; border-width: 1.5px; } }

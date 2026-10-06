@@ -7,6 +7,7 @@ import path from 'node:path';
 import { Game } from './game.js';
 import { Room, TURN_MS } from './room.js';
 import { encodeSave, decodeSave } from './save.js';
+import { putAvatar, getAvatar } from './avatars.js';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,12 @@ const SEAT_GRACE_MS = 60 * 1000;
 const app = express();
 app.use('/shared', express.static(path.join(root, 'shared')));
 app.use(express.static(path.join(root, 'public')));
+app.get('/avatar/:id.jpg', (req, res) => {
+  const buf = getAvatar(req.params.id);
+  if (!buf) return res.status(404).end();
+  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+  res.send(buf);
+});
 // /r/房间号 直接进入房间页
 app.get('/r/:roomId', (_req, res) => res.sendFile(path.join(root, 'public', 'index.html')));
 
@@ -45,7 +52,9 @@ function getRoom(id) {
 }
 
 function broadcast(room) {
-  const seats = room.seats.map((s) => s && { name: s.name, bot: !!s.bot, online: !!s.bot || room.isOnline(s.playerId) });
+  const seats = room.seats.map((s) => s && {
+    name: s.name, avatar: s.avatar || null, bot: !!s.bot, online: !!s.bot || room.isOnline(s.playerId),
+  });
   const spectators = [...room.members.values()]
     .filter((m) => room.seatOf(m.playerId) < 0)
     .map((m) => m.name);
@@ -136,7 +145,7 @@ io.on('connection', (socket) => {
     if (!roomId || !playerId) return reply(cb, { ok: false, error: '参数错误' });
     if (room && room.id !== roomId) room.members.delete(socket.id);
     room = getRoom(roomId);
-    me = { playerId: String(playerId).slice(0, 64), name: cleanName(name), god: !!god };
+    me = { playerId: String(playerId).slice(0, 64), name: cleanName(name), god: !!god, avatar: me?.avatar || null };
     room.members.set(socket.id, me);
     socket.join(roomId);
     const seat = mySeat();
@@ -152,7 +161,7 @@ io.on('connection', (socket) => {
     if (!(seat >= 0 && seat < 4) || room.seats[seat]) return reply(cb, { ok: false, error: '该座位已有人' });
     const cur = mySeat();
     if (cur >= 0) room.seats[cur] = null;
-    room.seats[seat] = { playerId: me.playerId, name: me.name };
+    room.seats[seat] = { playerId: me.playerId, name: me.name, avatar: me.avatar };
     reply(cb, { ok: true });
     changed(room);
   });
@@ -215,6 +224,17 @@ io.on('connection', (socket) => {
     }
     return g.nextRound() ? { ok: true } : { ok: false, error: '当前不能开始下一局' };
   }));
+
+  socket.on('avatar', ({ dataUrl } = {}, cb) => {
+    if (!room) return;
+    const url = putAvatar(dataUrl);
+    if (!url) return reply(cb, { ok: false, error: '头像图片无效' });
+    me.avatar = url;
+    const seat = mySeat();
+    if (seat >= 0) room.seats[seat].avatar = url;
+    reply(cb, { ok: true, url });
+    broadcast(room);
+  });
 
   // 上帝视角：仅观战者生效，入座后自动失效
   socket.on('godView', ({ on } = {}) => {

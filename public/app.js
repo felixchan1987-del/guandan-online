@@ -40,6 +40,55 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// —— 头像 ——
+/** 把用户选的图片居中裁成正方形、压缩成 128px JPEG（约 5~10KB） */
+function makeAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 128;
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      canvas.getContext('2d').drawImage(img,
+        (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(img.src);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => reject(new Error('图片读取失败'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/** 选图片 → 压缩 → 存本地，返回 data URL */
+function pickAvatar() {
+  return new Promise((resolve) => {
+    const input = $('#avatarFile');
+    input.value = '';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return resolve(null);
+      try {
+        const dataUrl = await makeAvatar(file);
+        store.set('gd_avatar', dataUrl);
+        resolve(dataUrl);
+      } catch (e) {
+        toast(e.message);
+        resolve(null);
+      }
+    };
+    input.click();
+  });
+}
+
+/** 头像 HTML：有图片用图片，机器人用 🤖，否则用名字首字 */
+function avatarHtml(src, name, { bot = false, team = null, cls = '' } = {}) {
+  const t = team == null ? '' : ` team${team}`;
+  if (src) return `<img class="avatar${t} ${cls}" src="${escapeHtml(src)}" alt="">`;
+  const ch = bot ? '🤖' : escapeHtml(Array.from(String(name || '?').trim())[0] || '?');
+  return `<span class="avatar letter${t} ${cls}">${ch}</span>`;
+}
+
 function cardText(card) {
   if (card.suit === 'J') return card.rank === 17 ? '大王' : '小王';
   return `${SUIT_SYMBOLS[card.suit]}${rankLabel(card.rank)}`;
@@ -53,6 +102,11 @@ else initRoom(match[1].toUpperCase());
 function initLobby() {
   $('#lobby').classList.remove('hidden');
   $('#nameInput').value = myName;
+  const showAvatar = () => {
+    $('#lobbyAvatar').innerHTML = avatarHtml(store.get('gd_avatar'), $('#nameInput').value || myName, { cls: 'big' });
+  };
+  showAvatar();
+  $('#lobbyAvatarBtn').onclick = async () => { if (await pickAvatar()) showAvatar(); };
   const go = (code, query = '') => {
     const name = $('#nameInput').value.trim();
     if (name) store.set('gd_name', name);
@@ -93,7 +147,12 @@ function initRoom(roomId) {
   const emit = (event, data) => socket.emit(event, data, (r) => { if (r && !r.ok) toast(r.error); });
 
   let godView = store.get('gd_god') === '1';
-  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: godView }));
+  const sendAvatar = () => {
+    const dataUrl = store.get('gd_avatar');
+    if (dataUrl) socket.emit('avatar', { dataUrl }, (r) => { if (r && !r.ok) toast(r.error); });
+  };
+  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: godView }, sendAvatar));
+  $('#avatarBtn').onclick = async () => { if (await pickAvatar()) sendAvatar(); };
   // 观战视角：看哪一家（该家显示在下方）
   let viewSeat = Number(store.get('gd_view')) || 0;
   const setView = (seat) => {
@@ -360,8 +419,7 @@ function initRoom(roomId) {
   function render() {
     const { seats, mySeat, game: g, spectators } = state;
     const viewer = mySeat ?? viewSeat;
-    // 宽屏才在座位旁显示小手牌；手机上只看当前视角这一家（大字显示在下方）
-    const roomy = window.innerWidth >= 900 && window.innerHeight >= 600;
+    // 上帝视角只显示当前视角这一家的手牌（大字显示在下方），其余三家隐藏
     $('#viewSel').classList.toggle('hidden', mySeat != null);
     document.querySelectorAll('#viewSel button').forEach((b) => {
       const s = Number(b.dataset.seat);
@@ -405,8 +463,9 @@ function initRoom(roomId) {
       if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="rank-badge">${FINISH_NAMES[finishIdx]}</span>`);
       if (inGame && pending.includes(seat)) tags.push(`<span class="timer" data-seat="${seat}"></span>`);
       plate.innerHTML =
-        `<div class="name">${s?.bot ? '🤖' : ''}${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
-        `<div class="meta">${tags.join(' ')}</div>`;
+        avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2 }) +
+        `<div class="plate-text"><div class="name">${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
+        `<div class="meta">${tags.join(' ')}</div></div>`;
       if (mySeat == null && seat !== viewSeat) {
         plate.classList.add('clickable');
         plate.title = '切换到这一家的视角';
@@ -443,11 +502,6 @@ function initRoom(roomId) {
       }
       if (pos === 0) box.prepend(trick); else box.appendChild(trick);
 
-      // 上帝视角：观战者看到每家手牌
-      if (g.allHands && g.allHands[seat]?.length && seat !== viewer && roomy) {
-        const godHand = cardsEl(g.allHands[seat], g.level, 'mini god-hand');
-        box.appendChild(godHand);
-      }
     }
 
     // 中央状态与按钮
@@ -581,14 +635,7 @@ function initRoom(roomId) {
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = handEl.clientWidth;
     const landscape = window.innerWidth > window.innerHeight;
-    let maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
-    if (state.mySeat == null && window.innerWidth >= 900 && window.innerHeight >= 600) {
-      // 宽屏观战：座位旁还有三家小手牌，按牌桌实际占用后剩下的高度来定
-      const h = (sel) => document.querySelector(sel)?.offsetHeight || 0;
-      const tableH = h('.seat.top') + Math.max(h('.seat.left'), h('.seat.right'), h('.center')) + h('.seat.bottom') + 40;
-      const free = window.innerHeight - h('.topbar') - tableH - h('#spectators') - 40;
-      maxH = Math.max(110, Math.min(maxH, free));
-    }
+    const maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
     let w = Math.min(78, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
     w = Math.max(w, 34);
