@@ -729,3 +729,22 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 .hand-cols.tight .card .lbl { letter-spacing: -0.08em; }
 .hand-cols.tight .card .lbl span { margin-left: 0; font-size: 0.84em; }
 .hand-cols.tight .card .lbl .jw { display: none; }
+
+/* 矮的横屏（手机浏览器地址栏占掉高度时）：工具按钮两列、记牌器单行，把高度留给牌桌和手牌 */
+@media (orientation: landscape) and (max-height: 420px) {
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .tools button { padding: 2px 6px; font-size: 11px; }
+  .counter .ct { flex-direction: row; gap: 2px; align-items: baseline; justify-content: center; }
+  .counter .ct-title { writing-mode: horizontal-tb; }
+  .trick .desc { display: none; }
+  .cards.mini .card { --card-w: 24px; --card-h: 32px; }
+}
+
+/* 横屏：自己那一行（头像 + 出牌按钮）横跨整个宽度；左右两家只占上面两行。
+   出牌区预留固定高度，牌桌高度不随有没有人出牌而变化，手牌大小保持稳定 */
+@media (orientation: landscape) and (max-height: 520px) {
+  .table { grid-template-areas: "left top right" "left center right" "bottom bottom bottom"; }
+  .seat.left, .seat.right { justify-content: flex-start; }
+  .seat.left .trick, .seat.right .trick, .seat.top .trick { min-height: 32px; }
+  .center { min-height: 40px; }
+}
