@@ -149,3 +149,28 @@ function comboColumns(pool, level) {
   singles.forEach((c) => cols.push({ kind: 'single', cards: [c] }));
   return cols;
 }
+
+// —— 手牌估值（供机器人使用）：剩余牌最少还要几手，并考虑炸弹和大牌的控制力 ——
+const planCache = new Map();
+
+/**
+ * 越小越好。大致等于「还要出几手」，炸弹、大牌（级牌及以上的单张/对子）能抢回出牌权，
+ * 逢人配能补成更好的牌型，都会让估值变小。
+ */
+export function planCost(hand, level) {
+  const key = level + '|' + hand.map((c) => c.suit + c.rank).sort().join(',');
+  const hit = planCache.get(key);
+  if (hit !== undefined) return hit;
+  const cols = arrangeHand(hand, level, [], 'combo');
+  let cost = 0;
+  for (const col of cols) {
+    if (col.kind === 'wild') { cost -= 0.35 * col.cards.length; continue; }
+    if (col.kind === 'bomb' || col.kind === 'jokerBomb' || col.kind === 'straightFlush') { cost += 0.15; continue; }
+    const top = rankValue(col.cards[0].rank, level);
+    const big = (col.kind === 'single' || col.kind === 'pair') && top >= 15;
+    cost += big ? 0.45 : 1;
+  }
+  if (planCache.size > 20000) planCache.clear();
+  planCache.set(key, cost);
+  return cost;
+}

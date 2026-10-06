@@ -230,3 +230,16 @@ test('记牌器：统计本局已出的牌', () => {
   g.startRound(0);
   assert.deepEqual(g.view(null).playedCounts, {});
 });
+
+test('AI：队友只剩 1 张时首出最小单张喂队友', () => {
+  const move = chooseMove(ctx('S3 S4 S5 S6 S7 D9 D9 SK', null, { handCounts: [8, 15, 1, 15] }));
+  assert.equal(move.combo.type, TYPES.SINGLE);
+  assert.equal(move.cards[0].rank, 3);
+});
+
+test('AI：出牌不破坏牌型（能用顺子就不拆）', () => {
+  // 3-7 顺子 + 对 9：跟单张时宁可出 K 也不拆顺子
+  const last = { seat: 1, combo: analyze(cs('S2'), 3)[0] };
+  const move = chooseMove(ctx('S3 D4 C5 S6 H7 S9 D9 SK', last, { level: 3, handCounts: [8, 20, 20, 20] }));
+  assert.ok(!move || move.cards[0].rank === 13);
+});

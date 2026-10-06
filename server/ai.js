@@ -1,6 +1,9 @@
-// 机器人 / 托管出牌策略（启发式）
+// 机器人 / 托管出牌策略：基于「手牌规划」的启发式
+// 每个候选出法都评估出完后剩余手牌的估值（planCost：大致是还要几手），
+// 优先选不破坏牌型、让剩余手数最少的出法；炸弹和大牌留作抢回出牌权。
 import { findCombos } from '../shared/hint.js';
-import { bombPower, isWild, TYPES } from '../shared/rules.js';
+import { planCost } from '../shared/arrange.js';
+import { bombPower, rankValue, TYPES } from '../shared/rules.js';
 
 const SAME_RANK = new Set([TYPES.SINGLE, TYPES.PAIR, TYPES.TRIPLE, TYPES.TRIPLE_PAIR]);
 
@@ -10,23 +13,10 @@ function strength(combo) {
   return combo.key + 2; // 顺子类按起点
 }
 
-/** 出这手牌的“代价”：拆炸弹、拆三张、消耗逢人配、动用炸弹 */
-function cost(cand, counts, level) {
-  const used = {};
-  for (const c of cand.cards) if (!isWild(c, level)) used[c.rank] = (used[c.rank] || 0) + 1;
-  let k = 0;
-  for (const r of Object.keys(used)) {
-    const have = counts[r];
-    if (have - used[r] <= 0) continue;
-    if (have >= 4) k += 8; // 拆炸弹
-    else if (have === 3) k += 2; // 拆三张
-    else if (have === 2) k += 1; // 拆对子
-  }
-  k += cand.wilds * 5;
-  const power = bombPower(cand.combo);
-  if (power) k += 10 + power;
-  return k;
-}
+const without = (hand, cards) => {
+  const ids = new Set(cards.map((c) => c.id));
+  return hand.filter((c) => !ids.has(c.id));
+};
 
 /**
  * ctx: { hand, level, seat, lastPlay, handCounts, finishOrder }
@@ -41,49 +31,66 @@ export function chooseMove(ctx) {
   const finish = cands.find((c) => c.cards.length === hand.length);
   if (finish) return finish;
 
-  const counts = {};
-  for (const c of hand) if (!isWild(c, level)) counts[c.rank] = (counts[c.rank] || 0) + 1;
   const active = (s) => !finishOrder.includes(s);
+  const partner = (seat + 2) % 4;
   const opps = [(seat + 1) % 4, (seat + 3) % 4].filter(active);
   const oppMin = opps.length ? Math.min(...opps.map((s) => handCounts[s])) : 99;
+  const partnerLeft = active(partner) ? handCounts[partner] : 0;
   const isBomb = (c) => bombPower(c.combo) > 0;
-  const nonBomb = cands.filter((c) => !isBomb(c));
-  const bombs = cands.filter(isBomb);
+  const after = (c) => planCost(without(hand, c.cards), level);
+  const base = planCost(hand, level);
 
+  // —— 首出 ——
   if (!lastPlay) {
-    // 首出：先甩掉便宜的小牌，多带几张更好；对手快走完时避开他能接的牌型
-    const pool = nonBomb.length ? nonBomb : cands;
+    // 队友快走完、对手还多：出最小的单张/对子让队友接
+    if (partnerLeft && partnerLeft <= 2 && oppMin > 3) {
+      const want = partnerLeft === 1 ? TYPES.SINGLE : TYPES.PAIR;
+      const feed = cands.filter((c) => c.combo.type === want && !isBomb(c))
+        .sort((a, b) => a.combo.key - b.combo.key)[0];
+      if (feed) return feed;
+    }
+    const pool = cands.filter((c) => !isBomb(c));
+    const list = pool.length ? pool : cands;
     const score = (c) => {
-      let s = cost(c, counts, level) + strength(c.combo) - c.cards.length * 1.5;
-      if (oppMin === 1 && c.combo.type === TYPES.SINGLE) s += 20 - strength(c.combo);
-      if (oppMin === 2 && c.combo.type === TYPES.PAIR) s += 12 - strength(c.combo);
+      let s = after(c) * 10 + strength(c.combo) * 0.6 - c.cards.length * 0.3 + c.wilds * 3;
+      // 对手剩 1~2 张时，别出他能接的单张/对子（除非是最大的那种）
+      const top = rankValue(c.cards[0].rank, level);
+      if (oppMin === 1 && c.combo.type === TYPES.SINGLE && top < 16) s += 40;
+      if (oppMin === 2 && c.combo.type === TYPES.PAIR && top < 15) s += 25;
+      if (isBomb(c)) s += 20;
       return s;
     };
-    return pool.slice().sort((a, b) => score(a) - score(b))[0];
+    return list.slice().sort((a, b) => score(a) - score(b))[0];
   }
 
+  // —— 跟牌 ——
   const lastSeat = lastPlay.seat;
-  const partnerPlayed = (lastSeat + 2) % 4 === seat;
-  if (partnerPlayed) {
-    // 不压队友；除非对手马上要走完而队友已出完
+  if ((lastSeat + 2) % 4 === seat) return null; // 不压队友
+
+  const lastCount = active(lastSeat) ? handCounts[lastSeat] : 0;
+  const danger = oppMin <= 6 || lastCount <= 7;
+  const nonBomb = cands.filter((c) => !isBomb(c));
+
+  if (nonBomb.length) {
+    // delta ≈ 这手牌是否“顺”：0 表示正好是计划里的一手，越大越伤牌型
+    const scored = nonBomb.map((c) => {
+      const delta = after(c) - (base - 1);
+      return { c, delta, s: delta * 10 + strength(c.combo) * 0.5 + c.wilds * 4 };
+    }).sort((a, b) => a.s - b.s);
+    const best = scored[0];
+    const jump = strength(best.c.combo) - strength(lastPlay.combo);
+    if (danger) return best.c;
+    if (best.delta <= 0.6 && !(jump > 7 && lastCount > 12 && hand.length > 10)) return best.c;
+    // 队友还没出、而且队友手牌比我少：让队友来管
+    if (best.delta <= 1.2 && !(partnerLeft && partnerLeft < hand.length)) return best.c;
     return null;
   }
 
-  const lastCount = active(lastSeat) ? handCounts[lastSeat] : 0;
-  const danger = oppMin <= 4 || lastCount <= 6;
-
-  if (nonBomb.length) {
-    const best = nonBomb.slice().sort((a, b) =>
-      cost(a, counts, level) + strength(a.combo) - (cost(b, counts, level) + strength(b.combo)))[0];
-    const jump = strength(best.combo) - strength(lastPlay.combo);
-    // 局面不紧张时，不为小牌拆炸弹，也不急着用大牌
-    if (!danger && cost(best, counts, level) >= 8) return null;
-    if (!danger && jump > 6 && lastCount > 12 && hand.length > 8) return null;
-    return best;
+  // 只能用炸弹：对手快走完，或者炸完自己三手内能走完
+  const bombs = cands.filter(isBomb);
+  if (bombs.length) {
+    const b = bombs[0];
+    if (danger || after(b) <= 3) return b;
   }
-
-  // 只能用炸弹：对手快走完、或自己快走完时才炸
-  if (bombs.length && (danger || hand.length - bombs[0].cards.length <= 6)) return bombs[0];
   return null;
 }
-
