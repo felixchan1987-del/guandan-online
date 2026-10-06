@@ -25,11 +25,13 @@
         <label>昵称 <input id="nameInput" maxlength="12" placeholder="输入昵称"></label>
       </div>
       <button id="createBtn" class="primary">创建房间</button>
+      <button id="practiceBtn">🤖 和机器人练习</button>
       <button id="lobbyLoadBtn">读取存档继续</button>
       <div class="join-row">
         <input id="codeInput" maxlength="8" placeholder="房间号">
         <button id="joinBtn">加入</button>
       </div>
+      <div id="recentRooms" class="recent"></div>
     </div>
   </section>
 
@@ -112,6 +114,7 @@
       <button class="menu-item" data-act="pause"><span class="mi-icon">⏸</span><span class="mi-text"><b>暂停对局</b><small>暂停后可换人、加减机器人</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="save"><span class="mi-icon">💾</span><span class="mi-text"><b>存档</b><small>保存当前对局，下次继续</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="load"><span class="mi-icon">📂</span><span class="mi-text"><b>读取存档</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="settings"><span class="mi-icon">⚙️</span><span class="mi-text"><b>设置</b><small>牌面大小、桌面颜色、音效、出牌确认</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="lobby"><span class="mi-icon">🏠</span><span class="mi-text"><b>返回大厅</b></span><span class="chev">›</span></button>
       <button class="cancel">取消</button>
     </div>
@@ -160,6 +163,29 @@
     <div class="dialog">
       <div class="dialog-row"><span class="eye big"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span><div><b>已退出上帝视角</b><p>你现在可以继续正常观战。</p></div></div>
       <button class="outline wide" id="godExitOk">知道了</button>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div id="settingsPanel" class="modal hidden">
+    <div class="sheet">
+      <div class="sheet-head"><span class="mi-icon">⚙️</span><b class="title">设置</b></div>
+      <div class="set-row"><span>牌面大小</span><div class="seg" data-set="cardSize"><button data-v="s">小</button><button data-v="m">中</button><button data-v="l">大</button></div></div>
+      <div class="set-row"><span>桌面颜色</span><div class="seg" data-set="theme"><button data-v="blue">蓝</button><button data-v="green">绿</button><button data-v="purple">紫</button></div></div>
+      <div class="set-row"><span>音效</span><div class="seg" data-set="sound"><button data-v="on">开</button><button data-v="off">关</button></div></div>
+      <div class="set-row"><span>出牌二次确认</span><div class="seg" data-set="confirm"><button data-v="on">开</button><button data-v="off">关</button></div></div>
+      <button class="cancel">完成</button>
+    </div>
+  </div>
+
+  <!-- 结算 -->
+  <div id="resultModal" class="modal hidden">
+    <div class="sheet result">
+      <div class="res-title" id="resTitle"></div>
+      <div class="res-level" id="resLevel"></div>
+      <div class="res-rank" id="resRank"></div>
+      <div class="res-note" id="resNote"></div>
+      <div class="res-btns" id="resBtns"></div>
     </div>
   </div>
 

@@ -94,6 +94,81 @@ function cardText(card) {
   return `${SUIT_SYMBOLS[card.suit]}${rankLabel(card.rank)}`;
 }
 
+// —— 设置（保存在本浏览器） ——
+const SETTINGS_DEFAULT = { cardSize: 'm', theme: 'blue', sound: 'on', confirm: 'off' };
+const settings = { ...SETTINGS_DEFAULT };
+try { Object.assign(settings, JSON.parse(store.get('gd_settings') || '{}')); } catch { /* 忽略 */ }
+const saveSettings = () => store.set('gd_settings', JSON.stringify(settings));
+const applyTheme = () => { document.documentElement.dataset.theme = settings.theme; };
+applyTheme();
+
+// —— 音效：用 Web Audio 现场合成，不需要音频文件 ——
+const sfx = (() => {
+  let ctx = null;
+  const ac = () => {
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+  const tone = (freq, dur, { type = 'sine', vol = 0.15, delay = 0, slide = 0 } = {}) => {
+    const c = ac();
+    if (!c) return;
+    const t = c.currentTime + delay;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  };
+  const noise = (dur, vol, cutoff = 1200) => {
+    const c = ac();
+    if (!c) return;
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+    const src = c.createBufferSource();
+    const f = c.createBiquadFilter();
+    const g = c.createGain();
+    src.buffer = buf;
+    f.type = 'lowpass';
+    f.frequency.value = cutoff;
+    g.gain.value = vol;
+    src.connect(f).connect(g).connect(c.destination);
+    src.start();
+  };
+  const on = () => settings.sound === 'on';
+  return {
+    unlock() { if (on()) ac(); },
+    play() { if (on()) { noise(0.06, 0.35, 3000); tone(420, 0.06, { type: 'triangle', vol: 0.12 }); } },
+    pass() { if (on()) tone(320, 0.08, { vol: 0.08 }); },
+    bomb() { if (on()) { noise(0.7, 0.9, 900); tone(150, 0.6, { type: 'sawtooth', vol: 0.22, slide: -100 }); } },
+    turn() { if (on()) { tone(660, 0.12, { vol: 0.12 }); tone(990, 0.18, { vol: 0.12, delay: 0.12 }); } },
+    tick() { if (on()) tone(1200, 0.04, { type: 'square', vol: 0.05 }); },
+    win() { if (on()) [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, { vol: 0.13, delay: i * 0.12 })); },
+    lose() { if (on()) [392, 330, 262].forEach((f, i) => tone(f, 0.25, { vol: 0.1, delay: i * 0.15 })); },
+  };
+})();
+document.addEventListener('pointerdown', () => sfx.unlock());
+
+// —— 最近去过的房间 ——
+const recentRooms = {
+  list() { try { return JSON.parse(store.get('gd_recent') || '[]'); } catch { return []; } },
+  add(code) {
+    const list = this.list().filter((r) => r.code !== code);
+    store.set('gd_recent', JSON.stringify([{ code, t: Date.now() }, ...list].slice(0, 5)));
+  },
+};
+
 // 可安装为手机桌面应用（PWA）
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
@@ -122,6 +197,21 @@ function initLobby() {
     return code;
   };
   $('#createBtn').onclick = () => go(newCode());
+  $('#practiceBtn').onclick = () => go(newCode(), '?practice=1');
+  const recent = recentRooms.list();
+  if (recent.length) {
+    const ago = (t) => {
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? '刚刚' : m < 60 ? `${m} 分钟前` : m < 1440 ? `${Math.round(m / 60)} 小时前` : `${Math.round(m / 1440)} 天前`;
+    };
+    $('#recentRooms').innerHTML = '<div class="rt">最近的房间</div>';
+    for (const r of recent) {
+      const b = document.createElement('button');
+      b.innerHTML = `<span>房间 <b>${escapeHtml(r.code)}</b></span><small>${ago(r.t)}</small>`;
+      b.onclick = () => go(r.code);
+      $('#recentRooms').appendChild(b);
+    }
+  }
   $('#lobbyLoadBtn').onclick = () => go(newCode(), '?load=1');
   $('#joinBtn').onclick = () => {
     const code = $('#codeInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -231,16 +321,35 @@ function initRoom(roomId) {
       else if (act === 'pause') emit('pause');
       else if (act === 'save') saveGame();
       else if (act === 'load') openLoadPanel();
+      else if (act === 'settings') openSettings();
       else if (act === 'lobby') location.href = '/';
     };
   });
   socket.on('disconnect', () => toast('连接断开，正在重连…'));
+  recentRooms.add(roomId);
   let wantLoad = new URLSearchParams(location.search).has('load');
+  // 「和机器人练习」：自动坐下、补满机器人并开局
+  let wantPractice = new URLSearchParams(location.search).has('practice');
+  const ask = (event, data) => new Promise((res) => socket.emit(event, data, (r) => res(r || {})));
+  async function startPractice() {
+    const free = state.seats.findIndex((x) => !x);
+    if (state.mySeat == null && free >= 0) await ask('sit', { seat: free });
+    if (state.game.phase === 'waiting') {
+      await ask('addBot', {});
+      const r = await ask('start');
+      if (!r.ok) toast(r.error || '开局失败');
+    }
+  }
   socket.on('state', (s) => {
     if (wantLoad) {
       wantLoad = false;
       history.replaceState(null, '', location.pathname);
       setTimeout(openLoadPanel, 0);
+    }
+    if (wantPractice) {
+      wantPractice = false;
+      history.replaceState(null, '', location.pathname);
+      setTimeout(startPractice, 0);
     }
     const prev = state;
     state = s;
@@ -252,8 +361,112 @@ function initRoom(roomId) {
     for (const id of selected) if (!ids.has(id)) selected.delete(id);
     hintList = null;
     detectBomb(prev, s);
+    reactToChanges(prev, s);
     render();
     keepAwake(['tribute', 'return', 'playing'].includes(s.game.phase) && !s.paused);
+  });
+
+  // —— 状态变化带来的音效、出牌动画、结算页 ——
+  let animSeats = new Set(); // 本次渲染需要播放「飞入」动画的座位
+  const trickSig = (st, seat) => {
+    const t = st?.game?.trick?.[seat];
+    if (!t) return '';
+    return `${st.game.roundNo}:${t.type}:${t.type === 'play' ? t.cards.map((c) => c.id).join(',') : st.game.lastPlay?.seat}`;
+  };
+  function reactToChanges(prev, cur) {
+    if (!prev) return;
+    const g = cur.game;
+    const pg = prev.game;
+    for (let seat = 0; seat < 4; seat++) {
+      const sig = trickSig(cur, seat);
+      if (!sig || sig === trickSig(prev, seat)) continue;
+      animSeats.add(seat);
+      const t = g.trick[seat];
+      if (t.type === 'pass') sfx.pass();
+      else if (!(g.lastPlay && g.lastPlay.seat === seat && bombPower(g.lastPlay.combo))) sfx.play();
+    }
+    if (g.lastPlay && bombPower(g.lastPlay.combo) && playSig(prev) !== playSig(cur)) sfx.bomb();
+    // 轮到自己
+    const mine = cur.mySeat != null && (g.pending || []).includes(cur.mySeat) && !cur.paused;
+    const wasMine = prev.mySeat != null && (pg.pending || []).includes(prev.mySeat) && !prev.paused;
+    if (mine && (!wasMine || g.turn !== pg.turn || g.phase !== pg.phase)) sfx.turn();
+    // 一局结束：弹出结算页
+    const over = (ph) => ph === 'roundOver' || ph === 'matchOver';
+    if (over(g.phase) && (!over(pg.phase) || g.roundNo !== pg.roundNo)) {
+      showResult(cur);
+      const myTeam = cur.mySeat == null ? null : cur.mySeat % 2;
+      if (myTeam == null || g.lastResult.winTeam === myTeam) sfx.win(); else sfx.lose();
+    }
+    if (!over(g.phase)) hide('#resultModal');
+  }
+
+  // —— 结算页 ——
+  function showResult(st) {
+    const g = st.game;
+    const r = g.lastResult;
+    const myTeam = st.mySeat == null ? null : st.mySeat % 2;
+    const win = myTeam == null || r.winTeam === myTeam;
+    const title = $('#resTitle');
+    title.className = `res-title ${win ? 'win' : 'lose'}`;
+    title.textContent = g.phase === 'matchOver'
+      ? `🎉 ${TEAM_NAMES[r.winTeam]}打过 A，赢得整场！`
+      : myTeam == null ? `${TEAM_NAMES[r.winTeam]}胜利` : (win ? '胜利！' : '失败');
+    $('#resLevel').innerHTML = `<span>${TEAM_NAMES[r.winTeam]} 升 ${r.up} 级</span>` +
+      `<span class="lv">${rankLabel(r.from)}</span><span class="arrow">→</span><span class="lv to">${rankLabel(r.to)}</span>`;
+    $('#resRank').innerHTML = r.finishOrder.slice(0, 4).map((seat, i) => {
+      const s = st.seats[seat];
+      return `<div class="r ${i === 0 ? 'first' : ''}"><span class="pos">${FINISH_NAMES[i]}</span>` +
+        avatarHtml(s?.avatar, s?.name || '?', { bot: s?.bot, team: seat % 2 }) +
+        `<span class="nm">${escapeHtml(s?.name || '空位')}</span><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span></div>`;
+    }).join('');
+    // 下一局谁给谁进贡（抗贡要等发完牌才知道）
+    const fo = r.finishOrder;
+    const nm = (seat) => `<b>${escapeHtml(st.seats[seat]?.name || '空位')}</b>`;
+    let note = '';
+    if (g.phase !== 'matchOver') {
+      note = fo[0] % 2 === fo[1] % 2
+        ? `双下！下一局 ${nm(fo[2])}、${nm(fo[3])} 双贡：大的给 ${nm(fo[0])}，小的给 ${nm(fo[1])}`
+        : `下一局 ${nm(fo[3])} 向 ${nm(fo[0])} 进贡`;
+      note += '<br>（进贡方共持两张大王可抗贡）';
+    }
+    if (r.aFail) note += `<br>${TEAM_NAMES[r.aFail.team]}打 A 失败（第 ${r.aFail.count} 次）${r.aFail.dropped ? '，退回打 2' : ''}`;
+    $('#resNote').innerHTML = note;
+    const btns = $('#resBtns');
+    btns.innerHTML = '';
+    const mk = (text, fn, cls = '') => {
+      const b = document.createElement('button');
+      b.textContent = text;
+      b.className = cls;
+      b.onclick = fn;
+      btns.appendChild(b);
+    };
+    mk('查看牌局', () => hide('#resultModal'));
+    if (st.mySeat != null) {
+      mk(g.phase === 'matchOver' ? '再来一场' : '下一局', () => { hide('#resultModal'); emit('nextRound'); }, 'primary');
+    }
+    show('#resultModal');
+  }
+
+  // —— 设置 ——
+  function openSettings() {
+    document.querySelectorAll('#settingsPanel .seg').forEach((seg) => {
+      const key = seg.dataset.set;
+      seg.querySelectorAll('button').forEach((b) => {
+        b.classList.toggle('on', settings[key] === b.dataset.v);
+        b.onclick = () => {
+          settings[key] = b.dataset.v;
+          saveSettings();
+          applyTheme();
+          openSettings();
+          if (state) render();
+          if (key === 'sound' && b.dataset.v === 'on') { sfx.unlock(); sfx.turn(); }
+        };
+      });
+    });
+    show('#settingsPanel');
+  }
+  $('#settingsPanel').addEventListener('click', (e) => {
+    if (e.target.id === 'settingsPanel' || e.target.closest('.cancel')) hide('#settingsPanel');
   });
 
   // —— 炸弹特效：新出的牌是炸弹 / 同花顺 / 天王炸时弹出横幅并震动牌桌 ——
@@ -337,8 +550,14 @@ function initRoom(roomId) {
     chatLog.scrollTop = chatLog.scrollHeight;
   }
   socket.on('chatHistory', (list) => { chatLog.innerHTML = ''; list.forEach(addChat); });
+  const chatBubbles = {}; // seat -> { text, until }
   socket.on('chat', (m) => {
     addChat(m);
+    if (m.seat != null) {
+      chatBubbles[m.seat] = { text: m.text, until: Date.now() + 3000 };
+      render();
+      setTimeout(() => { if (state) render(); }, 3050);
+    }
     if ($('#chatPanel').classList.contains('hidden')) {
       unread += 1;
       $('#chatBadge').textContent = unread > 99 ? '99+' : String(unread);
@@ -450,9 +669,19 @@ function initRoom(roomId) {
   }
 
   // —— 出牌操作 ——
+  let confirmArmed = null; // 已提示确认的选牌（排序后的 id 串）
+  const selSig = () => [...selected].sort().join(',');
   $('#playBtn').onclick = () => {
     const g = state.game;
     if (!selected.size) return toast('请先选牌');
+    // 设置里开了「出牌二次确认」：第一次点只提示，2.5 秒内对同一组牌再点才出
+    if (settings.confirm === 'on' && confirmArmed !== selSig()) {
+      confirmArmed = selSig();
+      $('#playBtn .lbl').textContent = '确认出牌？';
+      setTimeout(() => { confirmArmed = null; if (state) updateControls(); }, 2500);
+      return;
+    }
+    confirmArmed = null;
     if (g.phase === 'tribute' || g.phase === 'return') emit('tribute', { cardId: [...selected][0] });
     else emit('play', { cardIds: [...selected], optionIndex });
   };
@@ -539,15 +768,18 @@ function initRoom(roomId) {
     if (card.suit === 'J') {
       el.classList.add('joker', card.rank === 17 ? 'big' : 'small');
       el.innerHTML = big
-        ? `<div class="lbl">${card.rank === 17 ? '大王' : '小王'}</div><div class="big-suit">★</div>`
+        ? `<div class="lbl">${card.rank === 17 ? '大王' : '小王'}</div><div class="jk">JOKER</div><div class="big-suit">★</div>`
         : (card.rank === 17 ? '<span>大</span><span>王</span>' : '<span>小</span><span>王</span>');
     } else {
       if (card.suit === 'H' || card.suit === 'D') el.classList.add('red');
       if (card.rank === level) el.classList.add('level');
       if (isWild(card, level)) { el.classList.add('wild'); el.title = '逢人配'; }
       const suit = SUIT_SYMBOLS[card.suit];
+      const FACE = { 11: '♝', 12: '♛', 13: '♚' };
+      const center = FACE[card.rank] ? `<div class="face">${FACE[card.rank]}</div>` : `<div class="big-suit">${suit}</div>`;
       el.innerHTML = big
-        ? `<div class="lbl">${rankLabel(card.rank)}<span>${suit}</span></div><div class="big-suit">${suit}</div>`
+        ? `<div class="lbl">${rankLabel(card.rank)}<span>${suit}</span></div>${center}` +
+          `<div class="corner">${rankLabel(card.rank)}${suit}</div>`
         : `<span>${rankLabel(card.rank)}</span><span class="s">${suit}</span>`;
     }
     return el;
@@ -597,7 +829,11 @@ function initRoom(roomId) {
       if (s && !s.online) tags.push('<span class="tag offline">离线</span>');
       if (s?.bot) tags.push('<span class="tag bot">机器人</span>');
       else if (inGame && g.auto[seat]) tags.push('<span class="tag auto">托管</span>');
-      if (g.handCounts) tags.push(`<span class="tag count">剩 ${g.handCounts[seat]} 张</span>`);
+      if (g.handCounts) {
+        const n = g.handCounts[seat];
+        const backs = '<i></i>'.repeat(Math.min(3, Math.max(1, Math.ceil(n / 9))));
+        tags.push(`<span class="backs" title="剩 ${n} 张"><span class="stack">${n ? backs : ''}</span><b>${n}</b></span>`);
+      }
       if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="tag rank">${FINISH_NAMES[finishIdx]}</span>`);
       plate.innerHTML =
         `<div class="av-wrap">${avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2 })}` +
@@ -607,6 +843,10 @@ function initRoom(roomId) {
           : '') + '</div>' +
         `<div class="plate-text"><div class="name">${s ? nameHtml(seat) : '空位'}${seat === mySeat ? '（我）' : ''}</div>` +
         `<div class="meta">${tags.join('')}</div></div>`;
+      const bub = chatBubbles[seat];
+      if (bub && bub.until > Date.now()) {
+        plate.insertAdjacentHTML('beforeend', `<div class="bubble chat">${escapeHtml(bub.text)}</div>`);
+      }
       if (mySeat == null && seat !== viewSeat) {
         plate.classList.add('clickable');
         plate.title = '切换到这一家的视角';
@@ -642,8 +882,9 @@ function initRoom(roomId) {
         trick.appendChild(cardsEl(t.cards, g.level));
         trick.insertAdjacentHTML('beforeend', `<div class="desc">${t.desc}</div>`);
       } else if (t && t.type === 'pass') {
-        trick.innerHTML = '<div class="pass">不出</div>';
+        trick.innerHTML = '<div class="bubble pass">不要</div>';
       }
+      if (animSeats.has(seat)) trick.classList.add(`fly-${pos}`);
       if (pos === 0) box.prepend(trick); else box.appendChild(trick);
 
     }
@@ -734,6 +975,7 @@ function initRoom(roomId) {
 
     $('#spectators').textContent = spectators.length ? `观战（${spectators.length}）：${spectators.join('、')}` : '暂无观战';
 
+    animSeats = new Set();
     renderHand();
     renderCounter();
     if (godMode) renderGod();
@@ -839,21 +1081,23 @@ function initRoom(roomId) {
     const landscape = window.innerWidth > window.innerHeight;
     handEl.classList.toggle('combo', arrangeMode === 'combo');
     const phone = window.innerWidth <= 600 && !landscape;
-    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : phone ? 0.3 : 0.36));
+    const scale = { s: 0.82, m: 1, l: 1.18 }[settings.cardSize] || 1;
+    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : phone ? 0.3 : 0.36), 78, scale);
     updateSelection();
   }
 
   /** 按可用宽高计算列式手牌的牌宽：尽量大，放不下时列与列重叠 */
-  function sizeCols(el, cols, maxH, maxW = 78) {
+  function sizeCols(el, cols, maxH, maxW = 78, scale = 1) {
     const n = cols.length || 1;
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = el.clientWidth;
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
     const gap = el.classList.contains('combo') ? 7 : 3;
-    let w = Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n);
-    w = Math.max(w, 30);
+    // scale 来自设置里的牌面大小：放大时允许列与列重叠得更多
+    let w = Math.max(30, Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n)) * scale;
     const overlap = Math.max(0, (n * w + gap * (n - 1) - avail) / Math.max(1, n - 1));
     el.style.setProperty('--hw', `${Math.floor(w)}px`);
+    el.classList.toggle('narrow', w < 40); // 牌太窄时隐藏右下角标，避免和中间花色挤在一起
     el.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
   }
 
@@ -890,7 +1134,8 @@ function initRoom(roomId) {
         });
       }
       canPlay = myAction && opts.length > 0;
-      $('#playBtn .lbl').textContent = cards.length && !opts.length ? (g.lastPlay ? '管不上' : '牌型不对') : '出牌';
+      $('#playBtn .lbl').textContent = cards.length && !opts.length ? (g.lastPlay ? '管不上' : '牌型不对')
+        : confirmArmed && confirmArmed === selSig() ? '确认出牌？' : '出牌';
     }
 
     $('#playBtn').disabled = !canPlay;
@@ -911,6 +1156,9 @@ function initRoom(roomId) {
     const ms = Math.max(0, state.deadline - (Date.now() + clockOffset));
     const left = Math.ceil(ms / 1000);
     const frac = Math.min(1, ms / (state.turnMs || 30000));
+    const mine = state.mySeat != null && (state.game.pending || []).includes(state.mySeat) && !state.paused;
+    if (mine && left <= 5 && left > 0 && left !== updateTimers.last) sfx.tick();
+    updateTimers.last = left;
     document.querySelectorAll('.av-wrap').forEach((wrap) => {
       const prog = wrap.querySelector('.prog');
       if (!prog) return;

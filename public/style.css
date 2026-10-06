@@ -13,6 +13,8 @@
   --red: #d32f2f;
   --card-w: 46px;
   --card-h: 66px;
+  --sheet-1: #1b3f80;
+  --sheet-2: #11295a;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -191,7 +193,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 /* —— 牌 —— */
 .cards { display: flex; flex-wrap: wrap; justify-content: center; }
 .card {
-  width: var(--card-w); height: var(--card-h); background: #fff; color: #222; border-radius: 6px;
+  width: var(--card-w); height: var(--card-h); background: linear-gradient(180deg, #ffffff, #f2f5fa); color: #1b2238; border-radius: 6px;
   border: 1px solid #c9d3e3; padding: 2px 4px; display: flex; flex-direction: column; line-height: 1.05;
   font-weight: 700; font-size: 15px; user-select: none; position: relative;
   box-shadow: -1px 1px 3px rgba(0, 0, 0, 0.3);
@@ -234,11 +236,32 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 .hand-cols .card .lbl { white-space: nowrap; letter-spacing: -0.5px; }
 .hand-cols .card .lbl span { font-size: 0.9em; margin-left: 1px; }
 .hand-cols .card.joker .lbl { font-size: 0.8em; }
-.hand-cols .card .big-suit { position: absolute; right: 4%; bottom: 2%; font-size: calc(var(--hw) * 0.62); line-height: 1; }
+.hand-cols .card .big-suit {
+  position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); font-size: calc(var(--hw) * 0.58); line-height: 1;
+}
+.hand-cols .card .corner {
+  position: absolute; right: 3px; bottom: 2px; transform: rotate(180deg); font-size: calc(var(--hw) * 0.26);
+  line-height: 1; white-space: nowrap;
+}
+.hand-cols .card .face {
+  position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); width: 54%; height: 44%;
+  display: flex; align-items: center; justify-content: center; font-size: calc(var(--hw) * 0.42); line-height: 1;
+  border: 1.5px solid #d4a72c; border-radius: 4px; background: linear-gradient(180deg, #fff8e1, #ffe9a8);
+}
+.hand-cols .card.joker .big-suit { font-size: calc(var(--hw) * 0.6); }
+.hand-cols .card.joker.big .big-suit { color: #e53935; text-shadow: 0 0 4px rgba(255, 180, 0, 0.8); }
+.hand-cols .card .jk {
+  position: absolute; left: 3px; top: calc(var(--hw) * 0.5); writing-mode: vertical-rl; font-size: calc(var(--hw) * 0.18);
+  letter-spacing: 0; font-weight: 800; opacity: 0.85;
+}
 #hand { touch-action: none; }
 #hand .card { cursor: pointer; }
-#hand .card.selected { background: #9ccaff; border-color: #1e6fd9; }
-#hand .card.wild.selected { background: #d9c46a; }
+#hand .card { transition: transform 0.12s ease-out, box-shadow 0.12s; }
+#hand .card.selected {
+  transform: translateY(calc(var(--hw) * -0.28)); background: linear-gradient(180deg, #e3f0ff, #c4ddff);
+  border-color: #2f80ff; box-shadow: 0 0 0 2px #2f80ff, 0 6px 12px rgba(0, 0, 0, 0.35); z-index: 1;
+}
+#hand .card.wild.selected { background: linear-gradient(180deg, #fff6d6, #f1dc8a); }
 #hand .card.dim { filter: brightness(0.55); cursor: not-allowed; }
 
 /* —— 操作区 —— */
@@ -276,7 +299,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .sheet, .dialog, .modal-box {
-  background: linear-gradient(180deg, #1b3f80, #11295a); border: 1px solid var(--line); border-radius: 18px;
+  background: linear-gradient(180deg, var(--sheet-1), var(--sheet-2)); border: 1px solid var(--line); border-radius: 18px;
   width: 100%; max-width: 380px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); max-height: 100%; overflow-y: auto;
 }
@@ -317,7 +340,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 /* —— 上帝视角面板 —— */
 .god-panel {
   position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px;
-  background: radial-gradient(ellipse at 50% 30%, #245fb8 0%, #163f86 50%, #0c2659 100%);
+  background: radial-gradient(ellipse at 50% 30%, var(--bg-1) 0%, var(--bg-2) 50%, var(--bg-3) 100%);
   overflow-y: auto;
 }
 .gp-head { display: flex; align-items: center; gap: 8px; font-size: 16px; padding: 4px 2px; flex: none; }
@@ -391,7 +414,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 /* —— 聊天 —— */
 #chatPanel {
   position: fixed; right: 12px; top: 50px; z-index: 6; width: 300px; max-width: calc(100vw - 24px);
-  background: linear-gradient(180deg, #1b3f80, #11295a); border: 1px solid var(--line); border-radius: 14px; padding: 10px;
+  background: linear-gradient(180deg, var(--sheet-1), var(--sheet-2)); border: 1px solid var(--line); border-radius: 14px; padding: 10px;
   display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 #chatLog { height: 220px; overflow-y: auto; font-size: 13px; word-break: break-all; }
@@ -561,3 +584,86 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 }
 
 @media (min-width: 700px) { .counter { align-self: center; } .counter .ct { flex: none; min-width: 26px; } }
+
+/* 7. 对手剩余张数：一叠牌背 */
+.backs { display: inline-flex; align-items: center; gap: 4px; background: rgba(5, 20, 50, 0.55); border-radius: 6px; padding: 1px 6px 1px 4px; line-height: 18px; }
+.backs .stack { display: inline-flex; }
+.backs .stack i {
+  width: 10px; height: 14px; border-radius: 2px; border: 1px solid #d8e8ff; margin-left: -6px;
+  background: repeating-linear-gradient(45deg, #3a7be0 0 2px, #2453ad 2px 4px);
+}
+.backs .stack i:first-child { margin-left: 0; }
+.backs b { font-size: 12px; }
+
+/* 4. 气泡：「不要」和聊天消息 */
+.plate { position: relative; }
+.bubble {
+  position: relative; display: inline-block; background: #fff; color: #1b2a44; font-weight: 700;
+  border-radius: 14px; padding: 4px 12px; font-size: 14px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  animation: pop-in 0.25s ease-out;
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+.bubble.pass { color: #4a5a7a; }
+.bubble.chat {
+  position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); z-index: 3;
+  max-width: 180px; width: max-content; white-space: normal; font-weight: 500; font-size: 13px; text-align: center;
+  animation: chat-pop 3s ease-out forwards;
+}
+@keyframes pop-in { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes chat-pop {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  8% { opacity: 1; transform: translateX(-50%) scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 5. 出牌动画：牌从出牌人方向飞到桌面 */
+.trick.fly-0 { animation: fly-up 0.32s ease-out; }
+.trick.fly-2 { animation: fly-down 0.32s ease-out; }
+.trick.fly-3 { animation: fly-right 0.32s ease-out; }
+.trick.fly-1 { animation: fly-left 0.32s ease-out; }
+@keyframes fly-up { from { transform: translateY(60px) scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fly-down { from { transform: translateY(-50px) scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fly-right { from { transform: translateX(-50px) scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fly-left { from { transform: translateX(50px) scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 10. 结算页 */
+.sheet.result { text-align: center; align-items: stretch; max-width: 400px; }
+.res-title { font-size: 30px; font-weight: 900; letter-spacing: 3px; }
+.res-title.win { background: linear-gradient(180deg, #fff6b0, #ffc93c 50%, #ff8a1a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.res-title.lose { color: #b8cbec; }
+.res-level { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 15px; color: var(--muted); }
+.res-level .lv { font-size: 34px; font-weight: 900; color: #fff; min-width: 44px; }
+.res-level .lv.to { color: var(--accent); animation: lv-bump 0.6s 0.5s ease-out backwards; }
+.res-level .arrow { font-size: 22px; }
+@keyframes lv-bump { 0% { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); } }
+.res-rank { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.res-rank .r { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); min-width: 0; }
+.res-rank .r.first { background: rgba(255, 201, 60, 0.15); border: 1px solid rgba(255, 201, 60, 0.6); }
+.res-rank .r .avatar { width: 40px; height: 40px; font-size: 16px; border-width: 2px; }
+.res-rank .r .pos { font-size: 12px; font-weight: 700; color: var(--accent); }
+.res-rank .r .nm { font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-note { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.res-note b { color: var(--text); }
+.res-btns { display: flex; gap: 8px; }
+.res-btns button { flex: 1; padding: 10px; border-radius: 999px; }
+
+/* 11. 设置 */
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 5px 14px; background: transparent; }
+.seg button.on { background: linear-gradient(180deg, #4aa3ff, #1d6ef5); font-weight: 700; }
+:root[data-theme="green"] { --bg-1: #2f9a63; --bg-2: #1c6f46; --bg-3: #0d3d27; --panel: rgba(8, 48, 30, 0.72); --line: rgba(130, 230, 170, 0.28); --sheet-1: #1e6a45; --sheet-2: #0f3f28; }
+:root[data-theme="purple"] { --bg-1: #7a56d0; --bg-2: #4f3196; --bg-3: #261650; --panel: rgba(36, 18, 82, 0.72); --line: rgba(190, 160, 255, 0.3); --sheet-1: #4b2f92; --sheet-2: #2a1859; }
+
+/* 12. 大厅：最近房间 */
+.recent { display: flex; flex-direction: column; gap: 6px; }
+.recent:empty { display: none; }
+.recent .rt { font-size: 12px; color: var(--muted); }
+.recent button { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; }
+.recent button small { color: var(--muted); }
+
+.hand-cols.narrow .card .corner { display: none; }
