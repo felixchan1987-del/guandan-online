@@ -210,7 +210,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 /* 按列竖向叠放的手牌（玩家手牌、上帝视角单人） */
 .hand-cols {
   --hw: 52px; --ov: 0px;
-  display: flex; justify-content: center; align-items: flex-end; gap: 3px; padding-top: 10px;
+  display: flex; justify-content: center; align-items: flex-end; gap: 0; padding-top: 10px;
   user-select: none; -webkit-user-select: none;
 }
 .hand-cols .col { display: flex; flex-direction: column; flex: none; position: relative; }
@@ -226,7 +226,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   content: ""; position: absolute; left: -1px; right: -1px; top: -4px; height: 3px; border-radius: 2px; background: #3fcf8e;
 }
 /* 按组合理牌时，组与组之间留出间隔 */
-.hand-cols.combo { gap: 7px; }
+.hand-cols.combo { gap: 4px; }
 .hand-cols .card {
   width: var(--hw); height: calc(var(--hw) * 1.4); padding: 2px 3px;
   font-size: calc(var(--hw) * 0.4); border-radius: calc(var(--hw) * 0.09); line-height: 1;
@@ -719,3 +719,13 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 }
 .god-fab.on { background: var(--accent); color: #3a2a00; }
 .god-fab.on .eye { color: #3a2a00; }
+
+/* 「10」用窄字，列重叠时也能露出花色 */
+.hand-cols .card .lbl .ten { font-style: normal; letter-spacing: -0.12em; display: inline-block; transform: scaleX(0.78); transform-origin: left; margin-right: -0.22em; }
+/* 所有屏幕都整屏固定，不出现上下滚动 */
+#room { height: 100vh; height: 100dvh; overflow: hidden; }
+.table { min-height: 0; overflow: hidden; }
+
+.hand-cols.tight .card .lbl { letter-spacing: -0.08em; }
+.hand-cols.tight .card .lbl span { margin-left: 0; font-size: 0.84em; }
+.hand-cols.tight .card .lbl .jw { display: none; }

@@ -768,7 +768,7 @@ function initRoom(roomId) {
     if (card.suit === 'J') {
       el.classList.add('joker', card.rank === 17 ? 'big' : 'small');
       el.innerHTML = big
-        ? `<div class="lbl">${card.rank === 17 ? '大王' : '小王'}</div><div class="jk">JOKER</div><div class="big-suit">★</div>`
+        ? `<div class="lbl">${card.rank === 17 ? '大' : '小'}<span class="jw">王</span></div><div class="jk">JOKER</div><div class="big-suit">★</div>`
         : (card.rank === 17 ? '<span>大</span><span>王</span>' : '<span>小</span><span>王</span>');
     } else {
       if (card.suit === 'H' || card.suit === 'D') el.classList.add('red');
@@ -778,7 +778,7 @@ function initRoom(roomId) {
       const FACE = { 11: '♝', 12: '♛', 13: '♚' };
       const center = FACE[card.rank] ? `<div class="face">${FACE[card.rank]}</div>` : `<div class="big-suit">${suit}</div>`;
       el.innerHTML = big
-        ? `<div class="lbl">${rankLabel(card.rank)}<span>${suit}</span></div>${center}` +
+        ? `<div class="lbl">${card.rank === 10 ? '<i class="ten">10</i>' : rankLabel(card.rank)}<span>${suit}</span></div>${center}` +
           `<div class="corner">${rankLabel(card.rank)}${suit}</div>`
         : `<span>${rankLabel(card.rank)}</span><span class="s">${suit}</span>`;
     }
@@ -1071,7 +1071,7 @@ function initRoom(roomId) {
     const scale = { s: 0.82, m: 1, l: 1.18 }[settings.cardSize] || 1;
     // 操作按钮不再占一行，手牌可以更高
     // 竖屏时列多、宽度紧：牌宽至少 38px，列与列适当重叠（每列仍露出点数和花色）
-    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.44 : phone ? 0.34 : 0.4), 84, scale, phone ? 38 : 30);
+    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.44 : phone ? 0.34 : 0.3), 84, scale, phone ? 42 : 30);
     updateSelection();
   }
 
@@ -1081,12 +1081,15 @@ function initRoom(roomId) {
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
     const avail = el.clientWidth;
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
-    const gap = el.classList.contains('combo') ? 7 : 3;
+    const gap = el.classList.contains('combo') ? 4 : 0;
+    const STEP = 0.72; // 宽度不够时列与列可以叠起来，每列至少露出 72% 宽度
     // scale 来自设置里的牌面大小：放大时允许列与列重叠得更多
-    let w = Math.max(minW, Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - gap * (n - 1)) / n)) * scale;
+    const byWidth = (avail - gap * (n - 1)) / (1 + (n - 1) * STEP);
+    let w = Math.max(minW, Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), byWidth)) * scale;
     const overlap = Math.max(0, (n * w + gap * (n - 1) - avail) / Math.max(1, n - 1));
     el.style.setProperty('--hw', `${Math.floor(w)}px`);
     el.classList.toggle('narrow', w < 40); // 牌太窄时隐藏右下角标，避免和中间花色挤在一起
+    el.classList.toggle('tight', overlap > 0); // 列有重叠时收紧标签
     el.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
   }
 
