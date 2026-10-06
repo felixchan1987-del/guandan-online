@@ -1,6 +1,6 @@
 import {
   isWild, rankLabel, SUIT_SYMBOLS, playableOptions, describeCombo,
-  tributeCandidates, returnCandidates, TYPES,
+  tributeCandidates, returnCandidates, TYPES, TYPE_NAMES,
 } from '/shared/rules.js';
 import { findCombos } from '/shared/hint.js';
 import { arrangeHand } from '/shared/arrange.js';
@@ -146,27 +146,90 @@ function initRoom(roomId) {
 
   const emit = (event, data) => socket.emit(event, data, (r) => { if (r && !r.ok) toast(r.error); });
 
-  let godView = store.get('gd_god') === '1';
   const sendAvatar = () => {
     const dataUrl = store.get('gd_avatar');
     if (dataUrl) socket.emit('avatar', { dataUrl }, (r) => { if (r && !r.ok) toast(r.error); });
   };
-  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: godView }, sendAvatar));
-  $('#avatarBtn').onclick = async () => { if (await pickAvatar()) sendAvatar(); };
+  // 上帝视角：null 关闭 | 'all' 所有玩家 | 'one' 指定玩家
+  let godMode = null;
+  let godSeat = 0;
+  socket.on('connect', () => socket.emit('join', { roomId, playerId, name: myName, god: !!godMode }, sendAvatar));
   // 观战视角：看哪一家（该家显示在下方）
   let viewSeat = Number(store.get('gd_view')) || 0;
   const setView = (seat) => {
     viewSeat = seat;
     store.set('gd_view', String(seat));
-    selected.clear();
     render();
   };
-  document.querySelectorAll('#viewSel button').forEach((b) => { b.onclick = () => setView(Number(b.dataset.seat)); });
-  $('#godBtn').onclick = () => {
-    godView = !godView;
-    store.set('gd_god', godView ? '1' : '0');
-    socket.emit('godView', { on: godView });
+
+  const show = (id) => $(id).classList.remove('hidden');
+  const hide = (id) => $(id).classList.add('hidden');
+  // 点遮罩或「取消」关闭弹层
+  for (const id of ['#moreMenu', '#godMenu', '#godExit']) {
+    $(id).addEventListener('click', (e) => { if (e.target.id === id.slice(1) || e.target.closest('.cancel')) hide(id); });
+  }
+
+  // —— 上帝视角 ——
+  const setGod = (mode, seat) => {
+    const wasOn = !!godMode;
+    godMode = mode;
+    if (seat != null) godSeat = seat;
+    if (!!mode !== wasOn) socket.emit('godView', { on: !!mode });
+    hide('#godMenu');
+    if (mode) { show('#godPanel'); renderGod(); } else hide('#godPanel');
+    if (!mode && wasOn) show('#godExit');
   };
+  $('#godFab').onclick = () => show('#godMenu');
+  document.querySelectorAll('#godMenu [data-god]').forEach((b) => {
+    b.onclick = () => {
+      const m = b.dataset.god;
+      if (m === 'off') { if (godMode) setGod(null); else hide('#godMenu'); return; }
+      setGod(m, m === 'one' ? viewSeat : null);
+    };
+  });
+  $('#gpClose').onclick = () => setGod(null);
+  $('#gpBack').onclick = () => setGod('all');
+  $('#godExitOk').onclick = () => hide('#godExit');
+  const stepGod = (d) => { godSeat = (godSeat + d + 4) % 4; renderGod(); };
+  $('#gpPrev').onclick = () => stepGod(-1);
+  $('#gpNext').onclick = () => stepGod(1);
+  // 左右滑动切换玩家
+  let swipeX = null;
+  $('#gpCard').addEventListener('pointerdown', (e) => { swipeX = e.clientX; });
+  $('#gpCard').addEventListener('pointerup', (e) => {
+    if (swipeX == null) return;
+    const dx = e.clientX - swipeX;
+    swipeX = null;
+    if (Math.abs(dx) > 40) stepGod(dx < 0 ? 1 : -1);
+  });
+
+  // —— 更多菜单 ——
+  $('#backBtn').onclick = () => { location.href = '/'; };
+  $('#moreBtn').onclick = () => {
+    const me = state?.mySeat;
+    $('#moreAvatar').innerHTML = avatarHtml(store.get('gd_avatar'), myName, { team: me == null ? null : me % 2 });
+    $('#moreName').textContent = myName;
+    $('#moreRole').textContent = me == null ? '观战中' : `${me + 1} 号位 · ${TEAM_NAMES[me % 2]}`;
+    const g = state?.game;
+    const playing = me != null && g && g.phase !== 'waiting';
+    const vis = (act, on) => $(`#moreMenu [data-act="${act}"]`).classList.toggle('hidden', !on);
+    vis('pause', playing && !state.paused && g.phase !== 'matchOver');
+    vis('save', playing);
+    vis('load', !!g && (g.phase === 'waiting' || state.paused));
+    show('#moreMenu');
+  };
+  document.querySelectorAll('#moreMenu [data-act]').forEach((b) => {
+    b.onclick = async () => {
+      hide('#moreMenu');
+      const act = b.dataset.act;
+      if (act === 'rename') rename();
+      else if (act === 'avatar') { if (await pickAvatar()) sendAvatar(); }
+      else if (act === 'pause') emit('pause');
+      else if (act === 'save') saveGame();
+      else if (act === 'load') openLoadPanel();
+      else if (act === 'lobby') location.href = '/';
+    };
+  });
   socket.on('disconnect', () => toast('连接断开，正在重连…'));
   let wantLoad = new URLSearchParams(location.search).has('load');
   socket.on('state', (s) => {
@@ -201,13 +264,14 @@ function initRoom(roomId) {
     addChat(m);
     if ($('#chatPanel').classList.contains('hidden')) {
       unread += 1;
-      $('#chatBtn').textContent = `聊天（${unread}）`;
+      $('#chatBadge').textContent = unread > 99 ? '99+' : String(unread);
+      show('#chatBadge');
     }
   });
   $('#chatBtn').onclick = () => {
     $('#chatPanel').classList.toggle('hidden');
     unread = 0;
-    $('#chatBtn').textContent = '聊天';
+    hide('#chatBadge');
     chatLog.scrollTop = chatLog.scrollHeight;
   };
   $('#chatForm').onsubmit = (e) => {
@@ -230,7 +294,7 @@ function initRoom(roomId) {
   $('#closePanelBtn').onclick = () => panel.classList.add('hidden');
   panel.onclick = (e) => { if (e.target === panel) panel.classList.add('hidden'); };
 
-  $('#saveBtn').onclick = () => socket.emit('save', null, (r) => {
+  const saveGame = () => socket.emit('save', null, (r) => {
     if (!r?.ok) return toast(r?.error || '存档失败');
     localSaves.add({ code: r.code, meta: r.meta, roomId });
     const d = new Date(r.meta.savedAt);
@@ -251,7 +315,6 @@ function initRoom(roomId) {
       $('#savedCode').select(); toast('请手动复制');
     }
   };
-  $('#pauseBtn').onclick = () => emit('pause');
 
   const loadCode = (code) => socket.emit('load', { code }, (r) => {
     if (!r?.ok) return toast(r?.error || '读取失败');
@@ -300,14 +363,14 @@ function initRoom(roomId) {
   $('#copyBtn').onclick = async () => {
     try { await navigator.clipboard.writeText(location.href); toast('链接已复制'); } catch { toast(location.href); }
   };
-  $('#renameBtn').onclick = () => {
+  function rename() {
     const n = prompt('新昵称', myName);
     if (n && n.trim()) {
       myName = n.trim().slice(0, 12);
       store.set('gd_name', myName);
-      socket.emit('join', { roomId, playerId, name: myName, god: godView });
+      socket.emit('join', { roomId, playerId, name: myName, god: !!godMode });
     }
-  };
+  }
 
   // —— 出牌操作 ——
   $('#playBtn').onclick = () => {
@@ -419,31 +482,22 @@ function initRoom(roomId) {
   function render() {
     const { seats, mySeat, game: g, spectators } = state;
     const viewer = mySeat ?? viewSeat;
-    // 上帝视角只显示当前视角这一家的手牌（大字显示在下方），其余三家隐藏
-    $('#viewSel').classList.toggle('hidden', mySeat != null);
-    document.querySelectorAll('#viewSel button').forEach((b) => {
-      const s = Number(b.dataset.seat);
-      b.textContent = seats[s] ? seats[s].name.replace('机器人·', '🤖').slice(0, 4) : `${s + 1}号`;
-      b.className = `small team${s % 2}${s === viewSeat ? ' primary' : ''}`;
-    });
     const paused = state.paused;
     const inGame = ['tribute', 'return', 'playing'].includes(g.phase) && !paused;
     const pending = g.pending || [];
     const seatsOpen = g.phase === 'waiting' || paused;
 
-    $('#godBtn').classList.toggle('hidden', mySeat != null);
-    $('#godBtn').textContent = state.god ? '上帝视角 ✓' : '上帝视角';
-    $('#godBtn').title = state.god ? '点击关闭' : '查看四家手牌';
-    $('#godBtn').classList.toggle('primary', !!state.god);
-    $('#saveBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting');
-    $('#pauseBtn').classList.toggle('hidden', mySeat == null || g.phase === 'waiting' || g.phase === 'matchOver' || paused);
-
-    $('#identity').textContent = mySeat == null ? `${myName}（观战中）` : `${myName}（${mySeat + 1} 号位）`;
-    const aInfo = [0, 1].filter((t) => g.aFails?.[t]).map((t) => ` · ${TEAM_NAMES[t]}打A失败${g.aFails[t]}次`).join('');
-    $('#levelInfo').innerHTML =
-      `打 <b>${rankLabel(g.level)}</b>（${TEAM_NAMES[g.levelTeam]}）` +
-      ` · 蓝队 ${rankLabel(g.teamLevels[0])} · 红队 ${rankLabel(g.teamLevels[1])}` +
-      (g.roundNo ? ` · 第 ${g.roundNo} 局` : '') + aInfo;
+    // 顶栏与比分牌
+    $('#roleChip').classList.toggle('hidden', mySeat != null);
+    $('#godFab').classList.toggle('hidden', mySeat != null || g.phase === 'waiting');
+    // 入座后上帝视角自动失效（服务器也不再发送手牌）
+    if (godMode && mySeat != null) { godMode = null; hide('#godPanel'); }
+    for (const t of [0, 1]) {
+      $(`#lv${t}`).textContent = rankLabel(g.teamLevels[t]);
+      $(`#af${t}`).textContent = g.aFails?.[t] ? `打A失败×${g.aFails[t]}` : '';
+    }
+    $('#roundNo').textContent = g.roundNo ? `第 ${g.roundNo} 局` : '未开始';
+    $('#lvCur').textContent = rankLabel(g.level);
 
     // 座位
     for (let seat = 0; seat < 4; seat++) {
@@ -455,29 +509,32 @@ function initRoom(roomId) {
       if (inGame && pending.includes(seat)) plate.classList.add('turn');
       const s = seats[seat];
       const finishIdx = g.finishOrder ? g.finishOrder.indexOf(seat) : -1;
-      const tags = [];
-      if (s && !s.online) tags.push('<span class="offline">离线</span>');
-      if (s?.bot) tags.push('<span class="bot-tag">机器人</span>');
-      else if (inGame && g.auto[seat]) tags.push('<span class="auto-tag">托管</span>');
-      if (g.handCounts) tags.push(`剩 ${g.handCounts[seat]} 张`);
-      if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="rank-badge">${FINISH_NAMES[finishIdx]}</span>`);
+      const tags = [`<span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span>`];
+      if (s && !s.online) tags.push('<span class="tag offline">离线</span>');
+      if (s?.bot) tags.push('<span class="tag bot">机器人</span>');
+      else if (inGame && g.auto[seat]) tags.push('<span class="tag auto">托管</span>');
+      if (g.handCounts) tags.push(`<span class="tag count">剩 ${g.handCounts[seat]} 张</span>`);
+      if (finishIdx >= 0 && (g.phase === 'playing' || finishIdx < 3)) tags.push(`<span class="tag rank">${FINISH_NAMES[finishIdx]}</span>`);
       if (inGame && pending.includes(seat)) tags.push(`<span class="timer" data-seat="${seat}"></span>`);
       plate.innerHTML =
         avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2 }) +
-        `<div class="plate-text"><div class="name">${nameHtml(seat)}${seat === mySeat ? '（我）' : ''}</div>` +
-        `<div class="meta">${tags.join(' ')}</div></div>`;
+        `<div class="plate-text"><div class="name">${s ? nameHtml(seat) : '空位'}${seat === mySeat ? '（我）' : ''}</div>` +
+        `<div class="meta">${tags.join('')}</div></div>`;
       if (mySeat == null && seat !== viewSeat) {
         plate.classList.add('clickable');
         plate.title = '切换到这一家的视角';
         plate.onclick = (e) => { if (!e.target.closest('button')) setView(seat); };
       }
       if (seatsOpen) {
+        const btns = document.createElement('div');
+        btns.className = 'seat-btns';
+        plate.appendChild(btns);
         const seatBtn = (text, fn, cls = 'small') => {
           const b = document.createElement('button');
           b.className = cls;
           b.textContent = text;
           b.onclick = fn;
-          plate.appendChild(b);
+          btns.appendChild(b);
         };
         if (!s) {
           seatBtn(mySeat == null ? '坐下' : '换到这里', () => emit('sit', { seat }), 'small primary');
@@ -591,18 +648,82 @@ function initRoom(roomId) {
     $('#spectators').textContent = spectators.length ? `观战（${spectators.length}）：${spectators.join('、')}` : '暂无观战';
 
     renderHand();
+    if (godMode) renderGod();
     updateTimers();
+  }
+
+  // —— 上帝视角面板 ——
+  function renderGod() {
+    const { seats, game: g } = state;
+    const hands = g.allHands;
+    const playing = ['tribute', 'return', 'playing'].includes(g.phase);
+    $('#gpMode').textContent = godMode === 'all' ? '所有玩家' : '查看玩家';
+    $('#gpAll').classList.toggle('hidden', godMode !== 'all');
+    $('#gpOne').classList.toggle('hidden', godMode !== 'one');
+    const who = (seat, cls = '') => {
+      const s = seats[seat];
+      return avatarHtml(s?.avatar, s?.name || '空', { bot: s?.bot, team: seat % 2, cls });
+    };
+    const handOf = (seat) => (hands ? hands[seat] : g.revealed?.[seat]) || [];
+    const leftText = (seat) => {
+      const fi = g.finishOrder ? g.finishOrder.indexOf(seat) : -1;
+      return fi >= 0 && fi < 3 ? `<span class="done">${FINISH_NAMES[fi]}</span>` : `剩 ${g.handCounts?.[seat] ?? 0} 张`;
+    };
+
+    if (godMode === 'all') {
+      const viewer = viewSeat;
+      for (let seat = 0; seat < 4; seat++) {
+        const box = document.querySelector(`#gpAll .gp-box[data-pos="${(seat - viewer + 4) % 4}"]`);
+        box.classList.toggle('turn', playing && (g.pending || []).includes(seat));
+        box.innerHTML =
+          `<div class="gp-who">${who(seat)}<b>${nameHtml(seat)}</b><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span></div>`;
+        box.appendChild(cardsEl(handOf(seat), g.level, 'mini'));
+        box.insertAdjacentHTML('beforeend', `<div class="left-n">${leftText(seat)}</div>`);
+        box.onclick = () => setGod('one', seat);
+      }
+      const lp = g.lastPlay;
+      $('#gpMidType').textContent = lp ? TYPE_NAMES[lp.combo.type] : (playing ? '首出' : '—');
+      $('#gpMidSub').textContent = lp ? `${seatName(lp.seat)} 出牌` : (playing ? `轮到 ${seatName(g.turn ?? 0)}` : '当前出牌');
+      return;
+    }
+
+    // 单人视角
+    const seat = godSeat;
+    const s = seats[seat];
+    $('#gpCardHead').innerHTML = who(seat) +
+      `<div class="info"><b>${nameHtml(seat)}</b><div class="row"><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span>` +
+      `<span>${leftText(seat)}</span>${s?.bot ? '<span class="tag bot">机器人</span>' : ''}</div></div>`;
+    const hand = handOf(seat);
+    const gpHand = $('#gpHand');
+    gpHand.innerHTML = '';
+    const cols = arrangeHand(hand, g.level);
+    for (const col of cols) {
+      const colEl = document.createElement('div');
+      colEl.className = `col ${col.kind}`;
+      for (const c of col.cards) colEl.appendChild(cardEl(c, g.level, true));
+      gpHand.appendChild(colEl);
+    }
+    if (!hand.length) gpHand.innerHTML = '<p class="muted">没有手牌</p>';
+    sizeCols(gpHand, cols, window.innerHeight * 0.38, 60);
+    $('#gpDots').innerHTML = [0, 1, 2, 3].map((i) => `<span class="${i === seat ? 'on' : ''}"></span>`).join('');
+    const pick = $('#gpPick');
+    pick.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const b = document.createElement('button');
+      b.className = i === seat ? 'on' : '';
+      b.innerHTML = `${who(i)}<span class="nm">${nameHtml(i)}</span><span class="team-badge t${i % 2}">${TEAM_NAMES[i % 2]}</span>`;
+      b.onclick = () => { godSeat = i; renderGod(); };
+      pick.appendChild(b);
+    }
   }
 
   function renderHand(keepHint) {
     const g = state.game;
     const area = $('#handArea');
-    const readOnly = state.mySeat == null;
-    const hand = readOnly ? g.allHands?.[viewSeat] : g.myHand;
+    const hand = g.myHand;
     const inGame = ['tribute', 'return', 'playing'].includes(g.phase);
     if (!hand || !inGame) { area.classList.add('hidden'); return; }
     area.classList.remove('hidden');
-    area.classList.toggle('readonly', readOnly);
     if (!keepHint) { hintList = null; hintPos = -1; }
 
     const me = state.mySeat;
@@ -613,7 +734,7 @@ function initRoom(roomId) {
       handAllowed = new Set((g.phase === 'tribute' ? tributeCandidates(hand, g.level) : returnCandidates(hand)).map((c) => c.id));
     }
 
-    const cols = arrangeHand(hand, g.level, readOnly ? [] : groups);
+    const cols = arrangeHand(hand, g.level, groups);
     handEl.innerHTML = '';
     for (const col of cols) {
       const colEl = document.createElement('div');
@@ -625,23 +746,22 @@ function initRoom(roomId) {
       }
       handEl.appendChild(colEl);
     }
-    sizeHand(cols);
+    const landscape = window.innerWidth > window.innerHeight;
+    sizeCols(handEl, cols, window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36));
     updateSelection();
   }
 
-  /** 按屏幕宽高计算牌的大小：尽量大，放不下时列与列重叠 */
-  function sizeHand(cols) {
+  /** 按可用宽高计算列式手牌的牌宽：尽量大，放不下时列与列重叠 */
+  function sizeCols(el, cols, maxH, maxW = 78) {
     const n = cols.length || 1;
     const tallest = Math.max(1, ...cols.map((c) => c.cards.length));
-    const avail = handEl.clientWidth;
-    const landscape = window.innerWidth > window.innerHeight;
-    const maxH = window.innerHeight * (landscape && window.innerHeight < 520 ? 0.4 : 0.36);
+    const avail = el.clientWidth;
     const STRIP = 0.52; // 叠放时每张露出的高度（相对牌宽）
-    let w = Math.min(78, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
-    w = Math.max(w, 34);
+    let w = Math.min(maxW, maxH / (1.4 + (tallest - 1) * STRIP), (avail - 3 * (n - 1)) / n);
+    w = Math.max(w, 30);
     const overlap = Math.max(0, (n * w + 3 * (n - 1) - avail) / Math.max(1, n - 1));
-    handEl.style.setProperty('--hw', `${Math.floor(w)}px`);
-    handEl.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
+    el.style.setProperty('--hw', `${Math.floor(w)}px`);
+    el.style.setProperty('--ov', `${Math.ceil(overlap)}px`);
   }
 
   function updateSelection() {
@@ -664,7 +784,7 @@ function initRoom(roomId) {
     let canPlay;
     if (tributeMode) {
       canPlay = myAction && cards.length === 1;
-      $('#playBtn').textContent = g.phase === 'tribute' ? '进贡' : '还贡';
+      $('#playBtn .lbl').textContent = g.phase === 'tribute' ? '进贡' : '还贡';
     } else {
       const opts = cards.length ? playableOptions(cards, g.level, g.lastPlay?.combo) : [];
       if (opts.length > 1) {
@@ -677,7 +797,7 @@ function initRoom(roomId) {
         });
       }
       canPlay = myAction && opts.length > 0;
-      $('#playBtn').textContent = cards.length && !opts.length ? (g.lastPlay ? '管不上' : '牌型不对') : '出牌';
+      $('#playBtn .lbl').textContent = cards.length && !opts.length ? (g.lastPlay ? '管不上' : '牌型不对') : '出牌';
     }
 
     $('#playBtn').disabled = !canPlay;
@@ -688,8 +808,8 @@ function initRoom(roomId) {
     $('#sfBtn').classList.toggle('hidden', tributeMode);
     $('#groupBtn').disabled = !selected.size;
     const auto = g.auto[me];
-    $('#autoBtn').textContent = auto ? '取消托管' : '托管';
-    $('#autoBtn').classList.toggle('primary', auto);
+    $('#autoBtn .lbl').textContent = auto ? '取消托管' : '托管';
+    $('#autoBtn').classList.toggle('on', !!auto);
   }
 
   function updateTimers() {

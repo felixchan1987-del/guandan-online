@@ -28,10 +28,20 @@
   <!-- 房间 -->
   <section id="room" class="hidden">
     <header class="topbar">
-      <div>房间 <b id="roomCode"></b> <button id="copyBtn" class="small">复制链接</button></div>
-      <div id="levelInfo"></div>
-      <div><span id="identity"></span> <button id="renameBtn" class="small">改名</button> <button id="avatarBtn" class="small">头像</button> <button id="pauseBtn" class="small hidden">暂停</button> <button id="saveBtn" class="small hidden">存档</button> <span id="viewSel" class="hidden">视角 <button class="small" data-seat="0">1</button><button class="small" data-seat="1">2</button><button class="small" data-seat="2">3</button><button class="small" data-seat="3">4</button></span> <button id="godBtn" class="small hidden">上帝视角</button> <button id="chatBtn" class="small">聊天</button></div>
+      <button id="backBtn" class="icon-btn" title="返回大厅">‹</button>
+      <div class="room-title">房间 <b id="roomCode"></b></div>
+      <button id="copyBtn" class="chip">⧉ 复制链接</button>
+      <span id="roleChip" class="chip ghost hidden">观战中</span>
+      <div class="spacer"></div>
+      <button id="chatBtn" class="icon-btn" title="聊天">💬<span id="chatBadge" class="badge hidden"></span></button>
+      <button id="moreBtn" class="icon-btn" title="更多">⋯</button>
     </header>
+
+    <div class="scoreboard">
+      <div class="sb-team t0"><span>蓝队</span><b id="lv0">2</b><small id="af0"></small></div>
+      <div class="sb-mid"><span id="roundNo">未开始</span><b>打 <em id="lvCur">2</em></b></div>
+      <div class="sb-team t1"><span>红队</span><b id="lv1">2</b><small id="af1"></small></div>
+    </div>
 
     <main class="table">
       <div class="seat top" data-pos="2"></div>
@@ -48,12 +58,12 @@
     <div id="handArea" class="hidden">
       <div id="options"></div>
       <div class="actions">
-        <button id="autoBtn">托管</button>
-        <button id="passBtn">不出</button>
-        <button id="hintBtn">提示</button>
-        <button id="playBtn" class="primary">出牌</button>
+        <button id="playBtn" class="primary big-btn"><span class="ic">♠</span><span class="lbl">出牌</span></button>
+        <button id="passBtn" class="big-btn"><span class="ic">⊘</span><span class="lbl">不要</span></button>
+        <button id="hintBtn" class="big-btn"><span class="ic">💡</span><span class="lbl">提示</span></button>
+        <button id="autoBtn" class="big-btn"><span class="ic">🤖</span><span class="lbl">托管</span></button>
       </div>
-      <div id="hand"></div>
+      <div id="hand" class="hand-cols"></div>
       <div class="tools">
         <button id="groupBtn" class="small" title="把选中的牌理成一列，放到最左边">理牌</button>
         <button id="arrangeBtn" class="small" title="恢复自动排列：炸弹、同花顺在左">一键理牌</button>
@@ -64,8 +74,10 @@
     </div>
 
     <footer id="spectators"></footer>
+    <button id="godFab" class="god-fab hidden"><span class="eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span>上帝视角</button>
   </section>
 
+  <!-- 聊天 -->
   <div id="chatPanel" class="hidden">
     <div id="chatLog"></div>
     <div class="quick-row">
@@ -80,6 +92,67 @@
     </form>
   </div>
 
+  <!-- 更多菜单 -->
+  <div id="moreMenu" class="modal hidden">
+    <div class="sheet">
+      <div class="sheet-head"><span id="moreAvatar"></span><div><b id="moreName"></b><small id="moreRole"></small></div></div>
+      <button class="menu-item" data-act="rename"><span class="mi-icon">✏️</span><span class="mi-text"><b>改名</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="avatar"><span class="mi-icon">🖼️</span><span class="mi-text"><b>更换头像</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="pause"><span class="mi-icon">⏸</span><span class="mi-text"><b>暂停对局</b><small>暂停后可换人、加减机器人</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="save"><span class="mi-icon">💾</span><span class="mi-text"><b>存档</b><small>保存当前对局，下次继续</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="load"><span class="mi-icon">📂</span><span class="mi-text"><b>读取存档</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="lobby"><span class="mi-icon">🏠</span><span class="mi-text"><b>返回大厅</b></span><span class="chev">›</span></button>
+      <button class="cancel">取消</button>
+    </div>
+  </div>
+
+  <!-- 上帝视角菜单 -->
+  <div id="godMenu" class="modal hidden">
+    <div class="sheet">
+      <div class="sheet-head"><span class="eye big"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span><b class="title">上帝视角</b></div>
+      <p class="muted">可以查看所有玩家的手牌，或单独查看某个玩家的手牌。</p>
+      <button class="menu-item" data-god="all"><span class="mi-icon">👥</span><span class="mi-text"><b>查看所有玩家手牌</b><small>显示每个玩家的手牌（仅自己可见）</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-god="one"><span class="mi-icon">👤</span><span class="mi-text"><b>查看指定玩家手牌</b><small>选择玩家单独查看其手牌</small></span><span class="chev">›</span></button>
+      <button class="menu-item plain" data-god="off"><span class="mi-icon x">✕</span><span class="mi-text"><b>关闭上帝视角</b></span></button>
+      <button class="cancel">取消</button>
+    </div>
+  </div>
+
+  <!-- 上帝视角面板 -->
+  <div id="godPanel" class="god-panel hidden">
+    <div class="gp-head"><span class="eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span><b>上帝视角</b><span class="dot">·</span><span id="gpMode">所有玩家</span><button id="gpClose" class="icon-btn" title="关闭上帝视角">✕</button></div>
+    <div id="gpAll" class="gp-all">
+      <div class="gp-box" data-pos="2"></div>
+      <div class="gp-box" data-pos="3"></div>
+      <div class="gp-mid"><b id="gpMidType">—</b><small id="gpMidSub">当前出牌</small></div>
+      <div class="gp-box" data-pos="1"></div>
+      <div class="gp-box" data-pos="0"></div>
+    </div>
+    <div id="gpOne" class="gp-one hidden">
+      <div class="gp-card" id="gpCard">
+        <div class="gp-card-head" id="gpCardHead"></div>
+        <div class="gp-card-body">
+          <button class="nav prev" id="gpPrev">‹</button>
+          <div id="gpHand" class="hand-cols"></div>
+          <button class="nav next" id="gpNext">›</button>
+        </div>
+        <div class="dots" id="gpDots"></div>
+      </div>
+      <div class="gp-pick" id="gpPick"></div>
+      <button id="gpBack" class="wide">返回全部玩家</button>
+    </div>
+    <div class="gp-foot">上帝视角仅观战者可见，玩家看不到其他人的手牌</div>
+  </div>
+
+  <!-- 退出上帝视角提示 -->
+  <div id="godExit" class="modal hidden">
+    <div class="dialog">
+      <div class="dialog-row"><span class="eye big"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-2.3a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z"/></svg></span><div><b>已退出上帝视角</b><p>你现在可以继续正常观战。</p></div></div>
+      <button class="outline wide" id="godExitOk">知道了</button>
+    </div>
+  </div>
+
+  <!-- 存档 / 读档 -->
   <div id="savePanel" class="modal hidden">
     <div class="modal-box">
       <div class="modal-head"><b id="panelTitle"></b><button id="closePanelBtn" class="small">关闭</button></div>
