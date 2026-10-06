@@ -969,7 +969,9 @@ function initRoom(roomId) {
     // 进贡信息
     const tInfo = $('#tributeInfo');
     tInfo.innerHTML = '';
-    if (g.tribute && inGame) {
+    // 进贡信息只在进贡/还贡阶段显示，这一局打出第一手牌后自动消失
+    const firstPlayDone = Object.keys(g.playedCounts || {}).length > 0;
+    if (g.tribute && inGame && (g.phase !== 'playing' || !firstPlayDone)) {
       if (g.tribute.kind === 'resist') {
         tInfo.textContent = `抗贡！${g.tribute.payers.map(seatName).join('、')} 持有两张大王，免进贡`;
       } else {
