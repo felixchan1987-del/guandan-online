@@ -339,7 +339,9 @@ export class Game {
       finishOrder: this.finishOrder,
       lastPlay: this.lastPlay && { seat: this.lastPlay.seat, combo: this.lastPlay.combo },
       trick: this.trick,
-      playedCounts: this.playedCounts || {},
+      // 记牌器只给观战者；玩家只知道这一局是否已有人出过牌
+      playedCounts: seat == null ? this.playedCounts || {} : null,
+      anyPlayed: Object.keys(this.playedCounts || {}).length > 0,
       tribute,
       myHand: seat == null ? null : this.hands[seat],
       allHands: seat == null && god ? this.hands : null,

@@ -221,13 +221,16 @@ test('上帝视角只对观战者生效', () => {
   assert.equal(g.view(1, { god: true }).allHands, null); // 玩家拿不到别人的手牌
 });
 
-test('记牌器：统计本局已出的牌', () => {
+test('记牌器：统计本局已出的牌，只给观战者', () => {
   const g = new Game();
   g.startRound(0);
   g.hands[0] = cs('S5 D5 SK');
   g.play(0, g.hands[0].slice(0, 2).map((c) => c.id));
-  assert.deepEqual(g.view(1).playedCounts, { 5: 2 });
+  assert.deepEqual(g.view(null).playedCounts, { 5: 2 });
+  assert.equal(g.view(1).playedCounts, null); // 玩家拿不到
+  assert.equal(g.view(1).anyPlayed, true);
   g.startRound(0);
+  assert.equal(g.view(1).anyPlayed, false);
   assert.deepEqual(g.view(null).playedCounts, {});
 });
 

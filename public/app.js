@@ -518,7 +518,9 @@ function initRoom(roomId) {
   function renderCounter() {
     const g = state.game;
     const el = $('#counter');
-    const show = counterOn && g.playedCounts && g.phase !== 'waiting';
+    // 记牌器只对观战者开放
+    $('#counterBtn').classList.toggle('hidden', state.mySeat != null);
+    const show = counterOn && state.mySeat == null && g.playedCounts && g.phase !== 'waiting';
     el.classList.toggle('hidden', !show);
     $('#counterBtn').classList.toggle('on', counterOn);
     if (!show) return;
@@ -971,7 +973,7 @@ function initRoom(roomId) {
     const tInfo = $('#tributeInfo');
     tInfo.innerHTML = '';
     // 进贡信息只在进贡/还贡阶段显示，这一局打出第一手牌后自动消失
-    const firstPlayDone = Object.keys(g.playedCounts || {}).length > 0;
+    const firstPlayDone = !!g.anyPlayed;
     if (g.tribute && inGame && (g.phase !== 'playing' || !firstPlayDone)) {
       if (g.tribute.kind === 'resist') {
         tInfo.textContent = `抗贡！${g.tribute.payers.map(seatName).join('、')} 持有两张大王，免进贡`;
