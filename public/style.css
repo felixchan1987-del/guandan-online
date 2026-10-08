@@ -381,11 +381,25 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 .gp-who { display: flex; align-items: center; gap: 8px; }
 .gp-who .avatar { width: 34px; height: 34px; border-width: 2px; font-size: 15px; }
 .gp-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-who .team-badge { flex: none; white-space: nowrap; }
 .gp-box .cards { justify-content: flex-start; row-gap: 3px; padding-left: 12px; }
 .gp-box .cards .card { --card-w: 26px; --card-h: 36px; font-size: 11px; padding: 1px 2px; margin-left: -12px; }
 .gp-box { position: relative; }
-.gp-box .left-n { position: absolute; top: 8px; right: 10px; font-size: 11px; color: var(--muted); }
+.gp-box .left-n { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
 .gp-box .done { color: var(--accent); font-size: 12px; }
+.gp-play {
+  display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 2px 6px; border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22); border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.gp-play { flex-wrap: wrap; row-gap: 2px; }
+.gp-play .cards { flex: none; max-width: 100%; }
+.gp-play.top { border: 1px solid var(--accent); background: rgba(255, 201, 60, 0.1); }
+.gp-desc { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+.gp-desc i { font-style: normal; color: var(--accent); font-weight: 700; }
+.gp-pass { font-size: 13px; color: var(--muted); padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); }
+/* 出牌条放在朝向中间的一侧：上家在框底，自己在框顶 */
+.gp-box[data-pos="0"] .gp-play { order: -1; }
+.gp-now { display: none; font-size: 13px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .gp-mid {
   grid-area: mid; align-self: center; width: 84px; height: 84px; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
@@ -462,6 +476,13 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   .gp-mid b { font-size: 13px; }
   .gp-box { padding: 6px; }
   .gp-box .cards .card { --card-w: 22px; --card-h: 30px; font-size: 10px; margin-left: -10px; }
+  /* 竖屏：对家一行、上下家并排、自己一行；中间圆圈挪到标题栏 */
+  .gp-all { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "top top" "left right" "bottom bottom"; align-content: start; }
+  .gp-box[data-pos="2"], .gp-box[data-pos="0"] { width: 100%; }
+  .gp-mid, .gp-foot { display: none; }
+  .gp-head .dot, #gpMode { display: none; }
+  .gp-now { display: inline; }
+  .gp-play { min-height: 34px; padding: 2px 4px; }
 }
 
 /* —— 手机横屏：整屏不滚动，左右玩家放两侧 —— */
@@ -513,8 +534,14 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   .gp-who .avatar { width: 26px; height: 26px; font-size: 12px; }
   .gp-head { padding: 0 2px; font-size: 14px; }
   .gp-foot { display: none; }
-  .gp-mid { width: 70px; height: 70px; }
-  .gp-mid b { font-size: 13px; }
+  /* 横屏：上下家在两侧，对家和自己叠在中间一列；中间圆圈挪到标题栏 */
+  .gp-all { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: "left top right" "left bottom right"; align-content: stretch; }
+  .gp-box[data-pos="2"], .gp-box[data-pos="0"] { width: 100%; }
+  .gp-mid { display: none; }
+  .gp-now { display: inline; margin-left: 8px; }
+  .gp-play { min-height: 34px; padding: 1px 4px; }
+  .gp-who .team-badge { display: none; } /* 头像外圈颜色已区分队伍 */
+  .gp-box .cards .card { --card-w: 22px; --card-h: 30px; font-size: 10px; margin-left: -10px; }
   .gp-pick { width: auto; grid-template-columns: repeat(4, 74px); }
   #gpBack { width: auto; padding: 8px 18px; }
 }

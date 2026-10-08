@@ -1018,14 +1018,33 @@ function initRoom(roomId) {
         const box = document.querySelector(`#gpAll .gp-box[data-pos="${(seat - viewer + 4) % 4}"]`);
         box.classList.toggle('turn', playing && (g.pending || []).includes(seat));
         box.innerHTML =
-          `<div class="gp-who">${who(seat)}<b>${nameHtml(seat)}</b><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span></div>`;
+          `<div class="gp-who">${who(seat)}<b>${nameHtml(seat)}</b><span class="team-badge t${seat % 2}">${TEAM_NAMES[seat % 2]}</span>` +
+          `<span class="left-n">${leftText(seat)}</span></div>`;
         box.appendChild(cardsEl(handOf(seat), g.level, 'mini'));
-        box.insertAdjacentHTML('beforeend', `<div class="left-n">${leftText(seat)}</div>`);
+        // 本轮出的牌：放在朝向中间的一侧，当前最大的一手高亮
+        const t = playing && g.trick?.[seat];
+        const play = document.createElement('div');
+        play.className = 'gp-play';
+        if (t?.type === 'play') {
+          play.appendChild(cardsEl(t.cards, g.level, 'mini'));
+          const top = g.lastPlay?.seat === seat;
+          play.classList.toggle('top', top);
+          play.insertAdjacentHTML('beforeend', `<span class="gp-desc">${escapeHtml(t.desc)}${top ? '<i>最大</i>' : ''}</span>`);
+        } else if (t?.type === 'pass') {
+          play.innerHTML = '<span class="gp-pass">不要</span>';
+        } else {
+          play.classList.add('empty');
+          play.innerHTML = `<span class="gp-desc">${playing && g.turn === seat ? '思考中…' : ''}</span>`;
+        }
+        box.appendChild(play);
         box.onclick = () => setGod('player', seat); // 点某一家：切到他的玩家视角
       }
       const lp = g.lastPlay;
       $('#gpMidType').textContent = lp ? TYPE_NAMES[lp.combo.type] : (playing ? '首出' : '—');
       $('#gpMidSub').textContent = lp ? `${seatName(lp.seat)} 出牌` : (playing ? `轮到 ${seatName(g.turn ?? 0)}` : '当前出牌');
+      // 手机上中间的圆圈放不下，改在标题栏显示
+      $('#gpNow').textContent = lp ? `${TYPE_NAMES[lp.combo.type]} · ${seatName(lp.seat)}`
+        : (playing ? `首出 · 轮到 ${seatName(g.turn ?? 0)}` : '');
     }
   }
 
