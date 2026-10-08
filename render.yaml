@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
@@ -14,3 +14,9 @@ services:
       # 存档码加密密钥：自动生成并保持不变，重新部署后旧存档仍可读取
       - key: SAVE_SECRET
         generateValue: true
+      # 可选：房间持久化到 Upstash Redis（https://upstash.com 免费创建数据库后，把 REST URL 和 Token 填到 Render 后台）
+      # 填了之后重新部署 / 休眠唤醒都不会丢掉进行中的房间
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

@@ -2,16 +2,15 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
 import path from 'node:path';
 import { Game } from './game.js';
 import { Room, TURN_CHOICES, SKILLS } from './room.js';
 import { encodeSave, decodeSave } from './save.js';
 import { putAvatar, getAvatar } from './avatars.js';
+import { createStore } from './persist.js';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = process.env.DATA_FILE; // 设置后房间会持久化到该 JSON 文件
 const ROOM_IDLE_MS = 30 * 60 * 1000;
 const SEAT_GRACE_MS = 60 * 1000;
 const OFFLINE_AUTO_MS = Number(process.env.OFFLINE_AUTO_MS || 8000); // 对局中掉线多久后托管（刷新页面不受影响）
@@ -25,6 +24,8 @@ app.get('/avatar/:id.jpg', (req, res) => {
   res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
   res.send(buf);
 });
+// 健康检查 / 保活
+app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 // /r/房间号 直接进入房间页
 app.get('/r/:roomId', (_req, res) => res.sendFile(path.join(root, 'public', 'index.html')));
 
@@ -80,31 +81,35 @@ function broadcast(room) {
   }
 }
 
-// —— 持久化（可选） ——
-function save() {
-  if (!DATA_FILE || !dirty) return;
+// —— 持久化（可选，见 persist.js） ——
+const store = createStore();
+let saving = false;
+async function save() {
+  if (!store || !dirty || saving) return;
   dirty = false;
+  saving = true;
   try {
-    const tmp = `${DATA_FILE}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify([...rooms.values()]));
-    fs.renameSync(tmp, DATA_FILE);
+    await store.save([...rooms.values()]);
   } catch (e) {
-    console.error('保存失败', e.message);
+    dirty = true;
+    console.error('保存房间失败', e.message);
+  } finally {
+    saving = false;
   }
 }
 
-function load() {
-  if (!DATA_FILE || !fs.existsSync(DATA_FILE)) return;
+async function load() {
+  if (!store) return;
   try {
-    for (const data of JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))) {
+    for (const data of await store.load()) {
       const room = Room.fromJSON(data, changed);
       rooms.set(room.id, room);
       room.schedule();
       room.idleTimer = setTimeout(() => deleteRoom(room), ROOM_IDLE_MS);
     }
-    console.log(`已恢复 ${rooms.size} 个房间`);
+    console.log(`已从 ${store.name} 恢复 ${rooms.size} 个房间`);
   } catch (e) {
-    console.error('读取存档失败', e.message);
+    console.error('恢复房间失败', e.message);
   }
 }
 
@@ -115,12 +120,21 @@ function deleteRoom(room) {
   dirty = true;
 }
 
-load();
-if (DATA_FILE) {
-  setInterval(save, 10 * 1000).unref();
+if (store) {
+  setInterval(save, store.intervalMs).unref();
+  // 重新部署 / 停机前存一次
   for (const sig of ['SIGTERM', 'SIGINT']) {
-    process.on(sig, () => { dirty = true; save(); process.exit(0); });
+    process.on(sig, async () => { dirty = true; await save(); process.exit(0); });
   }
+}
+
+// —— 保活：Render 免费版 15 分钟没有访问会休眠，休眠会丢掉房间。
+// 还有房间时每 10 分钟访问一次自己；房间都散了（空房间 30 分钟后清理）就让它休眠，不浪费免费时长
+const SELF_URL = process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL;
+if (SELF_URL && process.env.KEEP_ALIVE !== '0') {
+  setInterval(() => {
+    if (rooms.size) fetch(`${SELF_URL.replace(/\/$/, '')}/healthz`).catch(() => {});
+  }, 10 * 60 * 1000).unref();
 }
 
 const cleanName = (n) => String(n || '').trim().slice(0, 12) || '玩家';
@@ -382,4 +396,5 @@ io.on('connection', (socket) => {
   });
 });
 
+await load();
 httpServer.listen(PORT, () => console.log(`掼蛋服务已启动: http://localhost:${PORT}`));
