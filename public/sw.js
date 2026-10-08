@@ -1,8 +1,11 @@
 // 掼蛋在线 Service Worker：只缓存静态页面资源，便于安装到桌面和弱网时快速打开。
 // 对局数据（socket.io）、头像等动态内容一律直连服务器，不缓存。
-const CACHE = 'guandan-v1';
+const CACHE = 'guandan-v2';
 const SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png',
-  '/shared/rules.js', '/shared/hint.js', '/shared/arrange.js'];
+  '/shared/rules.js', '/shared/hint.js', '/shared/arrange.js', '/shared/replay.js',
+  '/js/util.js', '/js/avatar.js', '/js/settings.js', '/js/sfx.js', '/js/cards.js', '/js/layout.js', '/js/lobby.js',
+  '/js/room.js', '/js/fourHands.js', '/js/replayView.js', '/js/logPanel.js', '/js/stats.js', '/js/emotes.js',
+  '/js/roomSettings.js', '/rules.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

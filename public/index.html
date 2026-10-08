@@ -31,6 +31,10 @@
         <input id="codeInput" maxlength="8" placeholder="房间号">
         <button id="joinBtn">加入</button>
       </div>
+      <div class="lobby-links">
+        <button id="lobbyStatsBtn">📊 我的战绩</button>
+        <a class="btn-link" href="/rules.html">📖 玩法说明</a>
+      </div>
       <div id="recentRooms" class="recent"></div>
     </div>
   </section>
@@ -44,6 +48,7 @@
       <span id="roleChip" class="chip ghost hidden">观战中</span>
       <div class="spacer"></div>
       <button id="counterBtn" class="icon-btn" title="记牌器">🃏</button>
+      <button id="logBtn" class="icon-btn hidden" title="出牌记录">📜</button>
       <button id="chatBtn" class="icon-btn" title="聊天">💬<span id="chatBadge" class="badge hidden"></span></button>
       <button id="moreBtn" class="icon-btn" title="更多">⋯</button>
     </header>
@@ -118,6 +123,10 @@
       <button class="menu-item" data-act="pause"><span class="mi-icon">⏸</span><span class="mi-text"><b>暂停对局</b><small>暂停后可换人、加减机器人</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="save"><span class="mi-icon">💾</span><span class="mi-text"><b>存档</b><small>保存当前对局，下次继续</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="load"><span class="mi-icon">📂</span><span class="mi-text"><b>读取存档</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="roomset"><span class="mi-icon">🛠️</span><span class="mi-text"><b>房间设置</b><small id="moreRoomSet">每步时限、从几打起、机器人难度、密码</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="replay"><span class="mi-icon">⏯</span><span class="mi-text"><b>回放上一局</b><small>逐手重看，四家手牌全部可见</small></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="stats"><span class="mi-icon">📊</span><span class="mi-text"><b>我的战绩</b></span><span class="chev">›</span></button>
+      <button class="menu-item" data-act="rules"><span class="mi-icon">📖</span><span class="mi-text"><b>玩法说明</b></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="settings"><span class="mi-icon">⚙️</span><span class="mi-text"><b>设置</b><small>牌面大小、桌面颜色、音效、出牌确认</small></span><span class="chev">›</span></button>
       <button class="menu-item" data-act="lobby"><span class="mi-icon">🏠</span><span class="mi-text"><b>返回大厅</b></span><span class="chev">›</span></button>
       <button class="cancel">取消</button>
@@ -149,6 +158,26 @@
     <div class="gp-foot">上帝视角仅观战者可见，玩家看不到其他人的手牌</div>
   </div>
 
+  <!-- 回放 -->
+  <div id="replayPanel" class="god-panel replay hidden">
+    <div class="gp-head"><span class="eye">⏯</span><b>回放</b><span class="dot">·</span><span id="rpTitle"></span><span id="rpNow" class="gp-now rp-now"></span><button id="rpClose" class="icon-btn" title="关闭回放">✕</button></div>
+    <div id="rpAll" class="gp-all">
+      <div class="gp-box" data-pos="2"></div>
+      <div class="gp-box" data-pos="3"></div>
+      <div class="gp-mid"><b id="rpMidType">—</b><small id="rpMidSub"></small></div>
+      <div class="gp-box" data-pos="1"></div>
+      <div class="gp-box" data-pos="0"></div>
+    </div>
+    <div class="rp-bar">
+      <button id="rpFirst" class="icon-btn" title="回到开头">⏮</button>
+      <button id="rpPrev" class="icon-btn" title="上一手">◀</button>
+      <button id="rpPlay" class="icon-btn primary" title="自动播放">▶</button>
+      <button id="rpNext" class="icon-btn" title="下一手">▶︎|</button>
+      <button id="rpLast" class="icon-btn" title="跳到最后">⏭</button>
+      <input id="rpRange" type="range" min="0" max="0" value="0">
+    </div>
+  </div>
+
   <!-- 退出上帝视角提示 -->
   <div id="godExit" class="modal hidden">
     <div class="dialog">
@@ -167,6 +196,47 @@
       <div class="set-row"><span>出牌二次确认</span><div class="seg" data-set="confirm"><button data-v="on">开</button><button data-v="off">关</button></div></div>
       <button class="cancel">完成</button>
     </div>
+  </div>
+
+  <!-- 出牌记录 -->
+  <div id="logPanel" class="modal hidden">
+    <div class="sheet log-sheet">
+      <div class="sheet-head"><span class="mi-icon">📜</span><b class="title">出牌记录</b><small id="logSub"></small></div>
+      <div id="logList" class="log-list"></div>
+      <button id="logReplayBtn" class="outline hidden">⏯ 回放上一局</button>
+      <button class="cancel">关闭</button>
+    </div>
+  </div>
+
+  <!-- 房间设置 -->
+  <div id="roomSetPanel" class="modal hidden">
+    <div class="sheet">
+      <div class="sheet-head"><span class="mi-icon">🛠️</span><b class="title">房间设置</b></div>
+      <p id="rsNote" class="muted small-note"></p>
+      <div class="set-row"><span>每步时限</span><div class="seg" data-rs="turnSec"><button data-v="15">15</button><button data-v="20">20</button><button data-v="30">30</button><button data-v="45">45</button><button data-v="60">60</button><button data-v="90">90秒</button></div></div>
+      <div class="set-row"><span>从几打起</span><select id="rsLevel"></select></div>
+      <div class="set-row"><span>机器人难度</span><div class="seg" data-rs="botSkill"><button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button></div></div>
+      <div class="set-row"><span>房间密码</span><div class="pwd-row"><input id="rsPwd" maxlength="16" placeholder="不设密码" autocomplete="off"><button id="rsPwdSave" class="small primary">保存</button></div></div>
+      <p class="muted small-note">设了密码后，进房间（包括观战）都要输入密码；「复制链接」会自动带上密码，朋友点开直接进。</p>
+      <button class="cancel">完成</button>
+    </div>
+  </div>
+
+  <!-- 战绩 -->
+  <div id="statsPanel" class="modal hidden">
+    <div class="sheet">
+      <div class="sheet-head"><span class="mi-icon">📊</span><b class="title">我的战绩</b><small>只记在本浏览器</small></div>
+      <div id="statsBody"></div>
+      <div class="res-btns"><button id="statsReset" class="outline">清空</button><button class="cancel">完成</button></div>
+    </div>
+  </div>
+
+  <!-- 互动表情 -->
+  <div id="emotePop" class="emote-pop hidden">
+    <div class="ep-row">
+      <button data-emote="flower">🌹</button><button data-emote="like">👍</button><button data-emote="beer">🍺</button><button data-emote="egg">🥚</button><button data-emote="bomb">💣</button>
+    </div>
+    <button id="emoteView" class="small hidden">👁 看他的视角</button>
   </div>
 
   <!-- 结算 -->

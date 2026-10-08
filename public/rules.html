@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>掼蛋玩法说明</title>
+  <meta name="theme-color" content="#1b4c9c">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { overflow-y: auto; }
+    .rules { max-width: 720px; margin: 0 auto; padding: 16px 16px 40px; line-height: 1.7; }
+    .rules h1 { text-align: center; letter-spacing: 4px; margin: 8px 0 4px; }
+    .rules .sub { text-align: center; color: var(--muted); margin: 0 0 12px; }
+    .rules nav { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 12px; }
+    .rules nav a { color: var(--text); text-decoration: none; font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); }
+    .rules section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; margin: 12px 0; }
+    .rules h2 { font-size: 18px; margin: 0 0 6px; color: var(--accent); }
+    .rules p, .rules li { font-size: 14px; margin: 4px 0; }
+    .rules ul { padding-left: 20px; margin: 4px 0; }
+    .rules table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rules td, .rules th { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; vertical-align: middle; }
+    .rules th { color: var(--muted); font-weight: 500; }
+    .c { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 24px; height: 32px; margin-right: -6px;
+         border-radius: 4px; background: #fff; color: #1a1a1a; font-size: 11px; line-height: 1; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.4); border: 1px solid #ccc; vertical-align: middle; }
+    .c.r { color: #d0202e; }
+    .c.w { background: #fff6d6; border-color: var(--accent); }
+    .c.j { font-size: 10px; }
+    .cs { display: inline-flex; padding-right: 8px; }
+    .order { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+    .order .gt { color: var(--muted); font-size: 12px; margin: 0 2px; }
+    .tip { color: var(--muted); font-size: 12px; }
+    .back { display: block; width: max-content; margin: 16px auto 0; }
+  </style>
+</head>
+<body>
+  <main class="rules">
+    <h1>掼蛋玩法</h1>
+    <p class="sub">两副牌 · 四人两队 · 先把级打到 A 并打过的一队赢</p>
+    <nav>
+      <a href="#basic">基本</a><a href="#order">大小</a><a href="#types">牌型</a><a href="#wild">逢人配</a>
+      <a href="#play">出牌</a><a href="#up">升级</a><a href="#tribute">进贡</a><a href="#a">打 A</a><a href="#ui">操作</a>
+    </nav>
+
+    <section id="basic">
+      <h2>基本规则</h2>
+      <ul>
+        <li>两副牌共 108 张，每人 27 张。<b>对家是队友</b>：1、3 号位是蓝队，2、4 号位是红队。</li>
+        <li>两队各有自己的级数，都从 2 开始。每一局打的是<b>上一局赢家那一队的级</b>，这张点数叫「级牌」。</li>
+        <li>谁先出完谁是「头游」，然后是二游、三游、末游。一队两人都出完，这一局就结束。</li>
+      </ul>
+    </section>
+
+    <section id="order">
+      <h2>单张大小</h2>
+      <div class="order">
+        <span class="c j">大<br>王</span><span class="gt">&gt;</span><span class="c j r">小<br>王</span><span class="gt">&gt;</span>
+        <span class="c">级</span><span class="gt">&gt;</span><span class="c">A</span><span class="gt">&gt;</span><span class="c r">K</span><span class="gt">&gt;</span>
+        <span class="c">Q</span><span class="gt">&gt;</span><span class="c r">J</span><span class="gt">&gt;</span><span class="c">10</span><span class="gt">&gt;</span><span class="tip">…</span><span class="gt">&gt;</span><span class="c">2</span>
+      </div>
+      <p>级牌比 A 大、比王小（比如打 5 时，5 比 A 大）。花色不分大小。</p>
+      <p class="tip">组成顺子、连对等牌型时，级牌按原本的位置算；A 可以当 1 用（A2345）。</p>
+    </section>
+
+    <section id="types">
+      <h2>牌型</h2>
+      <table>
+        <tr><th>牌型</th><th>例子</th><th>说明</th></tr>
+        <tr><td>单张</td><td><span class="cs"><span class="c">8</span></span></td><td></td></tr>
+        <tr><td>对子</td><td><span class="cs"><span class="c">9</span><span class="c r">9</span></span></td><td></td></tr>
+        <tr><td>三张</td><td><span class="cs"><span class="c">J</span><span class="c r">J</span><span class="c">J</span></span></td><td>三个一样的</td></tr>
+        <tr><td>三带二</td><td><span class="cs"><span class="c">7</span><span class="c r">7</span><span class="c">7</span><span class="c r">4</span><span class="c">4</span></span></td><td>只能带一对，按三张比大小</td></tr>
+        <tr><td>顺子</td><td><span class="cs"><span class="c">3</span><span class="c r">4</span><span class="c">5</span><span class="c">6</span><span class="c r">7</span></span></td><td>正好 5 张连续</td></tr>
+        <tr><td>三连对</td><td><span class="cs"><span class="c">5</span><span class="c r">5</span><span class="c">6</span><span class="c r">6</span><span class="c">7</span><span class="c r">7</span></span></td><td>正好 3 个连续的对子</td></tr>
+        <tr><td>钢板</td><td><span class="cs"><span class="c">8</span><span class="c r">8</span><span class="c">8</span><span class="c">9</span><span class="c r">9</span><span class="c">9</span></span></td><td>2 个连续的三张</td></tr>
+        <tr><td>炸弹</td><td><span class="cs"><span class="c">6</span><span class="c r">6</span><span class="c">6</span><span class="c r">6</span></span></td><td>4~8 张一样的，张数多的大</td></tr>
+        <tr><td>同花顺</td><td><span class="cs"><span class="c r">9</span><span class="c r">10</span><span class="c r">J</span><span class="c r">Q</span><span class="c r">K</span></span></td><td>同花色的顺子</td></tr>
+        <tr><td>天王炸</td><td><span class="cs"><span class="c j">大<br>王</span><span class="c j">大<br>王</span><span class="c j r">小<br>王</span><span class="c j r">小<br>王</span></span></td><td>四张王，最大</td></tr>
+      </table>
+      <p><b>炸弹大小：</b>天王炸 &gt; 6 张及以上的炸弹 &gt; 同花顺 &gt; 5 张炸弹 &gt; 4 张炸弹。</p>
+      <p class="tip">同样牌型、同样张数才能比大小；炸弹可以压任何非炸弹牌型。</p>
+    </section>
+
+    <section id="wild">
+      <h2>逢人配（百搭）</h2>
+      <p><b>红桃级牌</b>是百搭，可以当任何牌用（王除外），每副牌有一张，共两张。</p>
+      <p>例：打 2 时，<span class="cs"><span class="c">K</span><span class="c r">K</span><span class="c w r">2♥</span></span>可以当三个 K。</p>
+      <p class="tip">本站选好牌后如果有多种理解方式（比如可以当三带二也可以当顺子），按钮上方会让你选。</p>
+    </section>
+
+    <section id="play">
+      <h2>出牌</h2>
+      <ul>
+        <li>第一局随机一人先出，之后由进贡的人先出。</li>
+        <li>按座位顺序轮流，要么出同牌型更大的牌，要么「不要」。一圈都不要，最后出牌的人继续出任意牌型。</li>
+        <li>有人出完了，这一圈都不要时，由他的<b>队友接风</b>先出。</li>
+        <li><b>报牌：</b>手牌剩 10 张及以下时会提醒大家（头像旁张数变红）。</li>
+      </ul>
+    </section>
+
+    <section id="up">
+      <h2>升级</h2>
+      <table>
+        <tr><th>结果</th><th>赢的一队升</th></tr>
+        <tr><td>头游 + 二游（双下）</td><td>3 级</td></tr>
+        <tr><td>头游 + 三游</td><td>2 级</td></tr>
+        <tr><td>头游 + 末游</td><td>1 级</td></tr>
+      </table>
+    </section>
+
+    <section id="tribute">
+      <h2>进贡 / 还贡 / 抗贡</h2>
+      <ul>
+        <li><b>单贡：</b>上一局的末游给头游一张自己最大的牌（逢人配除外）。</li>
+        <li><b>双贡：</b>双下时，输的两人各贡一张，大的给头游、小的给二游；一样大时，头游的下家贡给头游。</li>
+        <li><b>还贡：</b>收到贡牌的人还一张 10 及以下的牌。</li>
+        <li><b>抗贡：</b>要进贡的一方手里共有两张大王，就不用进贡，头游先出。</li>
+        <li>进贡后由进贡的人（双贡时贡大牌的人）先出。</li>
+      </ul>
+    </section>
+
+    <section id="a">
+      <h2>打 A</h2>
+      <ul>
+        <li>打到 A 的一队，必须在<b>自己打 A 的这一局</b>拿到头游，且队友不是末游，才算打过、赢下整场。</li>
+        <li>打 A 失败 3 次，退回打 2。</li>
+      </ul>
+    </section>
+
+    <section id="ui">
+      <h2>本站操作小贴士</h2>
+      <ul>
+        <li>点按或按住滑动可以连续选牌；「提示」从小到大循环给出能出的牌。</li>
+        <li>「一键理牌」自动把手牌拆成出牌次数最少的组合；「理牌」把选中的牌放到最左边一列。</li>
+        <li>📜 出牌记录：看这一局谁出了什么；一局结束后可以「回放」，四家手牌全部可见。</li>
+        <li>点别人的头像可以丢鲜花、鸡蛋等表情。</li>
+        <li>「⋯」菜单里：房间设置（时限、从几打起、机器人难度、密码）、存档 / 读档、我的战绩。</li>
+        <li>掉线后自动托管，回来自动取消；也可以随时点「托管」。</li>
+      </ul>
+    </section>
+    <a class="btn-link back" href="/">返回大厅</a>
+  </main>
+</body>
+</html>

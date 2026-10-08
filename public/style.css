@@ -361,7 +361,7 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
 .gp-head { display: flex; align-items: center; gap: 8px; font-size: 16px; padding: 4px 2px; flex: none; }
 .gp-head .eye { width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #163a78; font-size: 16px; flex: none; }
 .gp-head .dot { color: var(--muted); }
-.gp-head #gpClose { margin-left: auto; background: none; border: 0; font-size: 20px; }
+.gp-head #gpClose, .gp-head #rpClose { margin-left: auto; background: none; border: 0; font-size: 20px; flex: none; }
 .gp-all {
   flex: 1; display: grid; gap: 10px; align-content: center;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -774,4 +774,94 @@ input::placeholder, textarea::placeholder { color: #8ea6cf; }
   .seat.left, .seat.right { justify-content: flex-start; }
   .seat.left .trick, .seat.right .trick, .seat.top .trick { min-height: 32px; }
   .center { min-height: 40px; }
+}
+
+/* —— 报牌：剩 10 张以内标红 —— */
+.backs.warn { background: #c62f3c; animation: warnPulse 1.4s ease-in-out infinite; }
+.backs.warn b { color: #fff; }
+@keyframes warnPulse { 50% { box-shadow: 0 0 0 3px rgba(255, 80, 90, 0.35); } }
+
+/* —— 出牌记录 —— */
+.log-sheet { max-width: 460px; max-height: min(640px, 92vh); }
+.log-list { flex: 1; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
+.log-head { font-size: 11px; color: var(--muted); margin: 6px 0 0; padding-bottom: 2px; border-bottom: 1px dashed var(--line); }
+.log-row { display: flex; align-items: center; gap: 8px; font-size: 13px; min-height: 30px; }
+.log-row > b { width: 6.5em; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.log-row .team0 { color: #7cc0ff; }
+.log-row .team1 { color: #ff9a9e; }
+.log-row .cards .card { --card-w: 22px; --card-h: 30px; font-size: 10px; }
+.log-row .cards .card + .card { margin-left: -10px; }
+.log-row .log-desc { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.log-row.pass .log-desc { font-style: italic; }
+
+/* —— 回放 —— */
+.god-panel.replay { z-index: 9; }
+.rp-now { display: inline !important; margin-left: 8px; }
+.rp-bar { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 0; }
+.rp-bar .icon-btn { width: 40px; height: 40px; border-radius: 50%; font-size: 15px; }
+.rp-bar #rpRange { flex: 1; max-width: 420px; accent-color: var(--accent); padding: 0; background: none; border: 0; }
+.replay .gp-box { cursor: default; }
+@media (max-width: 600px), (orientation: landscape) and (max-height: 520px) {
+  #rpTitle { display: none; }
+  .rp-now { margin-left: 0; }
+  .rp-bar .icon-btn { width: 34px; height: 34px; font-size: 13px; }
+}
+
+/* —— 房间设置 / 战绩 —— */
+.small-note { font-size: 12px; }
+.pwd-row { display: flex; gap: 6px; }
+.pwd-row input { width: 9em; padding: 5px 8px; }
+#rsLevel { font: inherit; color: var(--text); background: rgba(5, 20, 50, 0.55); border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; }
+#roomSetPanel .seg button { padding: 5px 9px; }
+.set-sum { font-size: 12px; }
+.st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.st-tile { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; }
+.st-tile b { font-size: 20px; color: var(--accent); }
+.st-tile span { font-size: 12px; }
+.st-tile small { font-size: 11px; color: var(--muted); }
+.st-combos { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.st-h { font-size: 12px; color: var(--muted); }
+.st-bar { display: grid; grid-template-columns: 5em 1fr 2.5em; align-items: center; gap: 6px; font-size: 12px; }
+.st-bar i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #4aa3ff, #7cd1ff); }
+.st-bar b { text-align: right; }
+.lobby-links { display: flex; gap: 8px; }
+.lobby-links > * { flex: 1; text-align: center; }
+.btn-link {
+  display: inline-block; color: var(--text); text-decoration: none; border-radius: 10px; padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* —— 互动表情 —— */
+.plate.clickable { cursor: pointer; }
+.emote-pop {
+  position: fixed; z-index: 12; display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 6px;
+  background: linear-gradient(180deg, var(--sheet-1), var(--sheet-2)); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.ep-row { display: flex; gap: 2px; }
+.ep-row button { font-size: 24px; padding: 2px 6px; background: none; border: 0; line-height: 1.2; }
+.ep-row button:active { transform: scale(1.2); }
+.emote-fly {
+  position: fixed; z-index: 30; font-size: 34px; line-height: 1; margin: -17px 0 0 -17px; pointer-events: none;
+  transition: transform 0.65s cubic-bezier(0.25, 0.7, 0.35, 1); filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+}
+.emote-fly.hit { animation: emoteHit 1s ease-out forwards; }
+@keyframes emoteHit {
+  0% { scale: 1; opacity: 1; }
+  25% { scale: 1.8; }
+  70% { scale: 1.5; opacity: 1; }
+  100% { scale: 1.6; opacity: 0; }
+}
+#chatLog .sys { color: var(--muted); font-size: 12px; }
+
+/* —— 中等高度的电脑/平板横屏（如 1280×800）：头像和名字横排，左右两家只占上面两行，
+   省下的高度留给手牌，自己的头像不会被手牌盖住 —— */
+@media (min-width: 601px) and (min-height: 521px) and (max-height: 960px) {
+  .table { grid-template-areas: "left top right" "left center right" "bottom bottom bottom"; }
+  .seat.top, .seat.bottom { flex-direction: row; justify-content: center; gap: 14px; }
+  .seat.left, .seat.right { justify-content: center; }
+  .plate { flex-direction: row; gap: 8px; text-align: left; }
+  .plate .plate-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .plate .meta { justify-content: flex-start; }
+  .center { min-height: 60px; }
 }

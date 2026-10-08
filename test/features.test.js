@@ -246,3 +246,49 @@ test('AI：出牌不破坏牌型（能用顺子就不拆）', () => {
   const move = chooseMove(ctx('S3 D4 C5 S6 H7 S9 D9 SK', last, { level: 3, handCounts: [8, 20, 20, 20] }));
   assert.ok(!move || move.cards[0].rank === 13);
 });
+
+test('出牌记录与回放：一轮都不要后清桌，回放还原每一步', async () => {
+  const { replayFrames } = await import('../shared/replay.js');
+  const g = new Game();
+  g.startRound(0);
+  g.hands[0] = cs('S5 D5 SK');
+  g.hands[1] = cs('S3 S4');
+  g.startHands = g.hands.map((h) => h.slice());
+  g.play(0, g.hands[0].slice(0, 2).map((c) => c.id));
+  g.pass(1); g.pass(2); g.pass(3);
+  assert.deepEqual(g.trick, [null, null, null, null]); // 新一轮清桌
+  assert.equal(g.turn, 0);
+  g.play(0, [g.hands[0][0].id]);
+  assert.deepEqual(g.log.map((e) => (e.e ? 'end' : e.c ? e.c.length : 'pass')), [2, 'pass', 'pass', 'pass', 'end', 1]);
+  const frames = replayFrames(g.startHands, g.log);
+  assert.equal(frames.length, 6);
+  assert.equal(frames[1].hands[0].length, 1);
+  assert.equal(frames[4].trick[3].type, 'pass');
+  assert.equal(frames[5].trick[1], null); // 新一轮从空桌开始
+  assert.deepEqual(frames[5].finished, [0]);
+});
+
+test('房间：掉线托管、回来取消；设置起始级数', async () => {
+  const { Room } = await import('../server/room.js');
+  const r = new Room('T', () => {});
+  r.settings.startLevel = 5;
+  r.newGame();
+  assert.deepEqual(r.game.teamLevels, [5, 5]);
+  r.seats = [0, 1, 2, 3].map((i) => ({ playerId: `p${i}`, name: `p${i}`, bot: i > 0 }));
+  r.settings.botSkill = 'easy';
+  r.syncBots();
+  assert.deepEqual(r.game.skill, ['hard', 'easy', 'easy', 'easy']);
+  assert.equal(r.markOffline(0), false); // 还没开局
+  r.game.startRound(0);
+  assert.equal(r.markOffline(0), true);
+  assert.equal(r.game.auto[0], true);
+  assert.equal(r.markOnline(0), true);
+  assert.equal(r.game.auto[0], false);
+  r.dispose();
+});
+
+test('AI：简单难度出最小的牌、不压队友', () => {
+  const easy = (hand, last, extra) => chooseMove({ ...ctx(hand, last, extra), skill: 'easy' });
+  assert.equal(easy('S3 S9 SK D4 D4').cards.length, 1);
+  assert.equal(easy('S3 S9 SK D4 D4').cards[0].rank, 3);
+});

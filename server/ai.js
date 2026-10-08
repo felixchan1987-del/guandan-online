@@ -19,17 +19,39 @@ const without = (hand, cards) => {
 };
 
 /**
- * ctx: { hand, level, seat, lastPlay, handCounts, finishOrder }
+ * ctx: { hand, level, seat, lastPlay, handCounts, finishOrder, skill?, random? }
+ * skill: 'easy' 简单（只会出最小的能出的牌）| 'normal' 普通（偶尔犯简单的错）| 'hard' 强（默认）
  * 返回 findCombos 的某一项，或 null 表示不出
  */
 export function chooseMove(ctx) {
-  const { hand, level, seat, lastPlay, handCounts, finishOrder } = ctx;
+  const { hand, level, lastPlay, skill = 'hard', random = Math.random } = ctx;
   const cands = findCombos(hand, level, lastPlay?.combo);
   if (!cands.length) return null;
 
   // 能一手出完就出完
   const finish = cands.find((c) => c.cards.length === hand.length);
   if (finish) return finish;
+
+  if (skill === 'easy' || (skill === 'normal' && random() < 0.35)) return simpleMove(ctx, cands, random);
+  return plannedMove(ctx, cands);
+}
+
+/** 简单策略：不压队友，出最小的能出的牌；对手快走完才偶尔用炸弹 */
+function simpleMove(ctx, cands, random) {
+  const { seat, lastPlay, handCounts, finishOrder } = ctx;
+  if (lastPlay && (lastPlay.seat + 2) % 4 === seat) return null;
+  const nonBomb = cands.filter((c) => bombPower(c.combo) === 0);
+  if (nonBomb.length) {
+    return nonBomb.slice().sort((a, b) => strength(a.combo) - strength(b.combo) || b.cards.length - a.cards.length)[0];
+  }
+  const oppMin = Math.min(...[(seat + 1) % 4, (seat + 3) % 4]
+    .filter((s) => !finishOrder.includes(s)).map((s) => handCounts[s]), 99);
+  return oppMin <= 3 && random() < 0.6 ? cands[0] : null;
+}
+
+/** 强策略：基于手牌规划 */
+function plannedMove(ctx, cands) {
+  const { hand, level, seat, lastPlay, handCounts, finishOrder } = ctx;
 
   const active = (s) => !finishOrder.includes(s);
   const partner = (seat + 2) % 4;

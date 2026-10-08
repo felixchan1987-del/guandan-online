@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Game } from './game.js';
-import { Room, TURN_MS } from './room.js';
+import { Room, TURN_CHOICES, SKILLS } from './room.js';
 import { encodeSave, decodeSave } from './save.js';
 import { putAvatar, getAvatar } from './avatars.js';
 
@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_FILE = process.env.DATA_FILE; // 设置后房间会持久化到该 JSON 文件
 const ROOM_IDLE_MS = 30 * 60 * 1000;
 const SEAT_GRACE_MS = 60 * 1000;
+const OFFLINE_AUTO_MS = Number(process.env.OFFLINE_AUTO_MS || 8000); // 对局中掉线多久后托管（刷新页面不受影响）
 
 const app = express();
 app.use('/shared', express.static(path.join(root, 'shared')));
@@ -58,6 +59,7 @@ function broadcast(room) {
   const spectators = [...room.members.values()]
     .filter((m) => room.seatOf(m.playerId) < 0)
     .map((m) => m.name);
+  const { password, ...pub } = room.settings;
   for (const [socketId, m] of room.members) {
     const seat = room.seatOf(m.playerId);
     io.to(socketId).emit('state', {
@@ -68,7 +70,9 @@ function broadcast(room) {
       paused: room.paused,
       loadedFrom: room.loadedFrom,
       deadline: room.deadline,
-      turnMs: TURN_MS,
+      turnMs: room.turnMs,
+      // 密码只发给入座玩家（方便他们分享链接）
+      settings: { ...pub, hasPassword: !!password, password: seat >= 0 ? password : undefined },
       serverNow: Date.now(),
       god: seat < 0 && !!m.god,
       game: room.game.view(seat < 0 ? null : seat, { god: seat < 0 && m.god }),
@@ -140,16 +144,25 @@ io.on('connection', (socket) => {
   const playAct = (cb, fn) => act(cb, (seat, g) =>
     (room.paused ? { ok: false, error: '对局已暂停，点「继续」后再操作' } : fn(seat, g)));
 
-  socket.on('join', ({ roomId, playerId, name, god } = {}, cb) => {
+  socket.on('join', ({ roomId, playerId, name, god, password } = {}, cb) => {
     roomId = String(roomId || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     if (!roomId || !playerId) return reply(cb, { ok: false, error: '参数错误' });
+    playerId = String(playerId).slice(0, 64);
+    const target = rooms.get(roomId);
+    // 有密码的房间：已入座的人（掉线重连）不用再输
+    if (target?.settings.password && target.seatOf(playerId) < 0 && String(password || '') !== target.settings.password) {
+      return reply(cb, { ok: false, needPassword: true, error: password ? '密码不对' : '这个房间需要密码' });
+    }
     if (room && room.id !== roomId) room.members.delete(socket.id);
     room = getRoom(roomId);
-    me = { playerId: String(playerId).slice(0, 64), name: cleanName(name), god: !!god, avatar: me?.avatar || null };
+    me = { playerId, name: cleanName(name), god: !!god, avatar: me?.avatar || null };
     room.members.set(socket.id, me);
     socket.join(roomId);
     const seat = mySeat();
-    if (seat >= 0) room.seats[seat].name = me.name;
+    if (seat >= 0) {
+      room.seats[seat].name = me.name;
+      room.markOnline(seat);
+    }
     reply(cb, { ok: true });
     socket.emit('chatHistory', room.chat);
     changed(room);
@@ -196,7 +209,9 @@ io.on('connection', (socket) => {
   socket.on('start', (_, cb) => act(cb, (_seat, g) => {
     if (g.phase !== 'waiting') return { ok: false, error: '对局已开始' };
     if (room.seats.some((s) => !s)) return { ok: false, error: '需要坐满 4 人' };
-    g.startRound();
+    if (g.roundNo === 0) room.newGame(); // 按房间设置的级数开打
+    room.syncBots();
+    room.game.startRound();
     room.loadedFrom = null;
     return { ok: true };
   }));
@@ -218,7 +233,8 @@ io.on('connection', (socket) => {
   socket.on('nextRound', (_, cb) => playAct(cb, (_seat, g) => {
     if (g.phase === 'matchOver') {
       // 整场结束：重开一场，座位保留
-      room.game = new Game();
+      room.newGame();
+      room.syncBots();
       room.game.startRound();
       return { ok: true };
     }
@@ -242,6 +258,39 @@ io.on('connection', (socket) => {
     me.god = !!on;
     broadcast(room);
   });
+
+  // 房间设置：入座玩家可改；起始级数只能开局前改
+  socket.on('settings', (patch = {}, cb) => act(cb, (_seat, g) => {
+    const st = room.settings;
+    const next = { ...st };
+    const notes = [];
+    if (patch.turnSec != null) {
+      if (!TURN_CHOICES.includes(Number(patch.turnSec))) return { ok: false, error: '时限无效' };
+      next.turnSec = Number(patch.turnSec);
+      if (next.turnSec !== st.turnSec) notes.push(`每步时限 ${next.turnSec} 秒`);
+    }
+    if (patch.startLevel != null) {
+      const lv = Number(patch.startLevel);
+      if (!(lv >= 2 && lv <= 14)) return { ok: false, error: '级数无效' };
+      if (lv !== st.startLevel && g.phase !== 'waiting') return { ok: false, error: '对局开始后不能改起始级数' };
+      next.startLevel = lv;
+      if (lv !== st.startLevel) notes.push(`从 ${'23456789TJQKA'[lv - 2].replace('T', '10')} 打起`);
+    }
+    if (patch.botSkill != null) {
+      if (!SKILLS.includes(patch.botSkill)) return { ok: false, error: '难度无效' };
+      next.botSkill = patch.botSkill;
+      if (next.botSkill !== st.botSkill) notes.push(`机器人难度：${{ easy: '简单', normal: '普通', hard: '困难' }[next.botSkill]}`);
+    }
+    if (patch.password != null) {
+      next.password = String(patch.password).trim().slice(0, 16);
+      if (next.password !== st.password) notes.push(next.password ? '已设置房间密码' : '已取消房间密码');
+    }
+    room.settings = next;
+    if (g.phase === 'waiting') room.game.teamLevels = [next.startLevel, next.startLevel];
+    if (notes.length) io.to(room.id).emit('chat', room.addChat('系统', null, `${me.name} 修改了设置：${notes.join('，')}`, true));
+    room.stepKey = null; // 新时限从下一步开始生效
+    return { ok: true };
+  }));
 
   // —— 存档 / 读档 / 暂停 ——
   socket.on('save', (_, cb) => act(cb, (_seat, g) => {
@@ -297,11 +346,29 @@ io.on('connection', (socket) => {
     reply(cb, { ok: true });
   });
 
+  // 互动表情：丢给某个座位（观众也能丢），限速
+  const EMOTES = ['flower', 'like', 'egg', 'bomb', 'beer'];
+  let lastEmote = 0;
+  socket.on('emote', ({ to, kind } = {}, cb) => {
+    if (!room || !(to >= 0 && to < 4) || !room.seats[to] || !EMOTES.includes(kind)) return reply(cb, { ok: false, error: '参数错误' });
+    const now = Date.now();
+    if (now - lastEmote < 1500) return reply(cb, { ok: false, error: '慢一点' });
+    lastEmote = now;
+    const seat = mySeat();
+    io.to(room.id).emit('emote', { from: seat < 0 ? null : seat, to, kind, name: me.name });
+    reply(cb, { ok: true });
+  });
+
   socket.on('disconnect', () => {
     if (!room) return;
     const r = room;
     const pid = me.playerId;
     r.members.delete(socket.id);
+    // 对局中掉线：稍等一会儿（刷新页面会很快回来），仍不在线就托管
+    setTimeout(() => {
+      const seat = r.seatOf(pid);
+      if (seat >= 0 && !r.isOnline(pid) && r.markOffline(seat)) changed(r);
+    }, OFFLINE_AUTO_MS);
     // 开局前或暂停中，掉线超过 60 秒自动让出座位（刷新页面不受影响）；对局中保留座位，超时会自动托管
     setTimeout(() => {
       const seat = r.seatOf(pid);

@@ -12,9 +12,9 @@ const A = 14;
 const A_FAIL_LIMIT = 3;
 
 export class Game {
-  constructor({ random = Math.random } = {}) {
+  constructor({ random = Math.random, startLevel = 2 } = {}) {
     Object.defineProperty(this, 'random', { value: random, writable: true, enumerable: false });
-    this.teamLevels = [2, 2];
+    this.teamLevels = [startLevel, startLevel];
     this.levelTeam = 0; // 当前打谁的级
     this.aFails = [0, 0]; // 打 A 失败次数
     this.roundNo = 0;
@@ -23,12 +23,16 @@ export class Game {
     this.matchWinner = null;
     this.tribute = null;
     this.auto = [false, false, false, false];
+    this.skill = ['hard', 'hard', 'hard', 'hard']; // 每个座位托管/机器人用的 AI 水平
     this.actions = 0;
   }
 
   /** 从持久化数据恢复 */
   static fromJSON(data) {
-    return Object.assign(new Game(), data);
+    const g = Object.assign(new Game(), data);
+    g.log ||= []; // 旧存档没有出牌记录
+    if (!Array.isArray(g.skill)) g.skill = ['hard', 'hard', 'hard', 'hard'];
+    return g;
   }
 
   get level() {
@@ -45,14 +49,22 @@ export class Game {
     this.passCount = 0;
     this.trick = [null, null, null, null]; // 本轮每个座位的最近动作，供界面显示
     this.playedCounts = {}; // 本局已出的牌：点数 -> 张数（公开信息，供记牌器）
+    this.log = []; // 本局出牌记录：{ s: 座位, c: 牌 | null(不要), d: 牌型描述 }，{ e: 1 } 表示一轮结束
+    this.startHands = null; // 出牌阶段开始时四家的手牌（进贡/还贡之后），供回放
     this.tribute = null;
     this.actions += 1;
     if (this.lastResult && leader == null) {
       this.setupTribute();
     } else {
-      this.phase = 'playing';
-      this.turn = leader ?? Math.floor(this.random() * 4);
+      this.beginPlay(leader ?? Math.floor(this.random() * 4));
     }
+  }
+
+  /** 进入出牌阶段，记下各家起手牌供回放 */
+  beginPlay(leader) {
+    this.phase = 'playing';
+    this.turn = leader;
+    this.startHands = this.hands.map((h) => h.slice());
   }
 
   // —— 进贡 / 还贡 / 抗贡 ——
@@ -65,8 +77,7 @@ export class Game {
     if (bigJokers >= 2) {
       // 抗贡：头游先出
       this.tribute = { kind: 'resist', payers, entries: [] };
-      this.phase = 'playing';
-      this.turn = fo[0];
+      this.beginPlay(fo[0]);
       return;
     }
     this.tribute = {
@@ -132,8 +143,7 @@ export class Game {
         this.hands[e.from].push(e.back);
         this.hands[e.from] = sortHand(this.hands[e.from], this.level);
       }
-      this.phase = 'playing';
-      this.turn = this.tribute.leader; // 进贡者（双贡时贡大牌者）先出
+      this.beginPlay(this.tribute.leader); // 进贡者（双贡时贡大牌者）先出
     }
     return { ok: true };
   }
@@ -171,6 +181,7 @@ export class Game {
     if (lead) this.trick = [null, null, null, null];
     this.lastPlay = { seat, cards, combo };
     this.trick[seat] = { type: 'play', cards, desc: describeCombo(combo) };
+    this.log.push({ s: seat, c: cards, d: this.trick[seat].desc });
     this.passCount = 0;
     this.actions += 1;
 
@@ -188,6 +199,7 @@ export class Game {
     if (!this.lastPlay) return { ok: false, error: '首出不能不出' };
     this.passCount += 1;
     this.trick[seat] = { type: 'pass' };
+    this.log.push({ s: seat, c: null });
     this.actions += 1;
 
     const leader = this.lastPlay.seat;
@@ -199,6 +211,8 @@ export class Game {
       this.turn = this.isActive(next) ? next : this.nextActive(next);
       this.lastPlay = null;
       this.passCount = 0;
+      this.trick = [null, null, null, null]; // 新一轮：清空桌面
+      this.log.push({ e: 1 });
     } else {
       this.turn = this.nextActive(seat);
     }
@@ -298,6 +312,8 @@ export class Game {
       lastPlay: this.lastPlay,
       handCounts: this.hands.map((h) => h.length),
       finishOrder: this.finishOrder,
+      skill: this.skill?.[seat] || 'hard',
+      random: this.random,
     });
   }
 
@@ -347,6 +363,9 @@ export class Game {
       allHands: seat == null && god ? this.hands : null,
       // 局结束后公开所有剩余手牌
       revealed: this.phase === 'roundOver' || this.phase === 'matchOver' ? this.hands : null,
+      // 出牌记录是公开信息；起手牌只在本局结束后给出，供回放
+      log: this.log || [],
+      startHands: this.phase === 'roundOver' || this.phase === 'matchOver' ? this.startHands : null,
     };
   }
 }
